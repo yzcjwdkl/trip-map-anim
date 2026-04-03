@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>开车轨迹测试</title>
+  <script src="https://webapi.amap.com/loader.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, sans-serif; }
+    #map { width: 100vw; height: 70vh; }
+    #log { height: 30vh; overflow-y: auto; padding: 12px; background: #1a1a2e; color: #0f0; font-family: monospace; font-size: 13px; }
+    .btn { padding: 8px 16px; margin: 8px 8px 8px 0; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; }
+    .btn:hover { background: #5a6fd6; }
+    h2 { padding: 12px; background: #16213e; color: white; }
+  </style>
+</head>
+<body>
+  <h2>🚗 高德开车轨迹测试</h2>
+  <div id="map"></div>
+  <div id="log">
+    <button class="btn" onclick="runDrivingTest()">测试：点位1 → 点位2 开车轨迹</button>
+    <button class="btn" onclick="clearMap()">清除</button>
+    <div id="output"></div>
+  </div>
+
+  <script>
+    let map = null
+    let AMap = null
+
+    // 高德安全密钥配置
+    window._AMapSecurityConfig = {
+      securityJsCode: 'e8942508d8cda4a36af33636adff6755'
+    }
+
+    AMapLoader.load({
+      key: 'e5daf9362ac8a17dbd5dd6750d0f5ecc',
+      version: '2.0',
+      plugins: ['AMap.Driving']
+    }).then(function(aMap) {
+      AMap = aMap
+      map = new AMap.Map('map', {
+        zoom: 14,
+        center: [98.5865, 24.4336],
+        viewMode: '2D'
+      })
+      log('地图加载成功')
+    }).catch(function(e) {
+      log('地图加载失败: ' + e)
+    })
+
+    function log(msg) {
+      const out = document.getElementById('output')
+      const div = document.createElement('div')
+      div.textContent = '> ' + msg
+      out.appendChild(div)
+      out.scrollTop = out.scrollHeight
+    }
+
+    function clearMap() {
+      if (map) map.clearMap()
+    }
+
+    function runDrivingTest() {
+      if (!AMap || !map) {
+        log('地图还未加载完成')
+        return
+      }
+
+      // 点位1：芒市广场
+      const p1 = [98.5865, 24.4336]
+      // 点位2：勐焕大金塔
+      const p2 = [98.5939, 24.4328]
+
+      log('开始驾车路径规划...')
+      log('起点: ' + p1)
+      log('终点: ' + p2)
+
+      const driving = new AMap.Driving({
+        policy: AMap.DrivingPolicy.LEAST_TIME,
+        extensions: 'all',
+        hideMarkers: true
+      })
+
+      driving.search(p1, p2, function(status, result) {
+        log('回调状态: ' + status)
+        log('result 类型: ' + typeof result)
+        if (result) {
+          log('result keys: ' + Object.keys(result).join(', '))
+        }
+
+        if (status === 'complete' && result && result.routes && result.routes[0]) {
+          const route = result.routes[0]
+          log('路线距离: ' + route.distance + ' 米')
+          log('路线时间: ' + route.time + ' 秒')
+          log('steps 数量: ' + (route.steps ? route.steps.length : 0))
+
+          // 收集路径点
+          const path = []
+          if (route.steps) {
+            route.steps.forEach(function(step) {
+              if (step.path && step.path.length > 0) {
+                step.path.forEach(function(p) {
+                  path.push([p.lng, p.lat])
+                })
+              }
+            })
+          }
+
+          log('总路径点数: ' + path.length)
+
+          if (path.length > 0) {
+            // 画轨迹线
+            const polyline = new AMap.Polyline({
+              path: path,
+              strokeColor: '#FF0000',
+              strokeWeight: 6,
+              lineJoin: 'round'
+            })
+            map.add(polyline)
+            map.setFitView()
+
+            log('轨迹线绘制成功！')
+          } else {
+            log('路径点为空，尝试其他方式获取...')
+            // 尝试从 steps 的 geometry 获取
+            if (route.steps) {
+              route.steps.forEach(function(step, i) {
+                log('step ' + i + ': ' + JSON.stringify({
+                  hasPath: !!step.path,
+                  pathLen: step.path ? step.path.length : 0,
+                  hasGeometry: !!step.geometry,
+                  hasRoads: !!step.roads
+                }))
+              })
+            }
+          }
+        } else {
+          log('规划失败: ' + (result && result.info ? result.info : '未知错误'))
+        }
+      })
+    }
+  </script>
+</body>
+</html>
