@@ -15,16 +15,15 @@ npm install
 > ⚠️ 这是最关键的步骤，不配置 Key 地图无法显示！
 
 1. 去[高德开放平台](https://lbs.amap.com/)注册账号
-2. 创建应用，获取 **Web JS API** 的 Key
-3. 打开 `src/main.js`，替换 `YOUR_AMAP_KEY` 为你的 Key：
+2. 创建应用，获取 **Web JS API** 的 Key 和 **安全密钥**
+3. 复制 `.env.example` 为 `.env`（如果没有则创建），填入你的 Key：
 
-```javascript
-VueAmap.initAMapApiLoader({
-  key: '你的高德Key', // ← 替换这里
-  plugin: ['AMap.Scale', 'AMap.PolylineEditor', 'AMap.Marker'],
-  v: '2.0'
-})
+```bash
+VITE_AMAP_KEY=你的高德WebJSAPIKey
+VITE_AMAP_SECURITY_CODE=你的安全密钥
 ```
+
+> ⚠️ `.env` 文件不要提交到 Git！已在 `.gitignore` 中忽略。
 
 ### 3. 运行
 

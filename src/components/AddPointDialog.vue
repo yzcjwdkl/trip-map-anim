@@ -119,8 +119,11 @@ async function initAMap() {
   if (AMap) return
   if (initPromise) return initPromise
   initPromise = (async () => {
+    window._AMapSecurityConfig = {
+      securityJsCode: import.meta.env.VITE_AMAP_SECURITY_CODE
+    }
     AMap = await AMapLoader.load({
-    key: 'e5daf9362ac8a17dbd5dd6750d0f5ecc',
+      key: import.meta.env.VITE_AMAP_KEY,
     version: '2.0',
     plugin: ['AMap.PlaceSearch']
   })
