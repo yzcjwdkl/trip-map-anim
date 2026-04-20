@@ -224,7 +224,8 @@ function cancelAnim() {
   const svgEl = document.querySelector('.ring-overlay')
   if (svgEl) svgEl.style.display = 'none'
   if (!isPlaying.value) { traveledPath = []; return }
-  traveledPath = []
+  // 播放中调用 cancelAnim（到达终点），traveledPath 保留由外层累积
+  return
 }
 
 const mapReady = ref(false)
@@ -746,6 +747,7 @@ function animLoop(now, pathCoords) {
     const arrivedIdx = anim.toIdx
     const prevDeparture = anim.departureIdx
     cancelAnim()
+    // cancelAnim 在播放中调用不会清 traveledPath（上面已加 return），此处安全
     anim.active = true  // cancelAnim 后恢复 active，syncDots 依赖它判断出发 dot
     anim.departureIdx = arrivedIdx  // 下一段出发 dot 为当前到达 dot
     trailLine && trailLine.setPath(pathCoords)
