@@ -164,14 +164,19 @@ import { getBearing, calcFitZoom, getSegmentDuration, interpolatePathCoord, buil
 let map = null
 let AMap = null
 let mainPolyline = null
+// ==================== marker icon（AMap.Icon + SVG）====================
+import flySvgUrl from '../assets/fj.svg'
+import carSvgUrl from '../assets/car.svg'
+let flyIcon = null
+let carIcon = null
+
 let movingMarker = null
 let trailLine = null
 let traveledPath = []  // 累积已走路径，避免段末累积时重复追加
 let allDotMarkers = []
 let allLabelMarkers = []
 let routeDirMap = {}
-// arrival ring — 三层同心圆实现渐变
-const DEFAULT_MARKER_ICON = '<div style="width:12px;height:12px;background:#667eea;border-radius:50%;display:inline-block;"></div>'
+// arrival ring — SVG 单光环实现
 const INVISIBLE_MARKER_ICON = '<div style="width:12px;height:12px;background:transparent;border-radius:50%;display:inline-block;"></div>'
 let arrivalRingAnimId = null
 const uid = Date.now()
@@ -341,11 +346,15 @@ onMounted(async () => {
 
     movingMarker = new AMap.Marker({
       position: tripData.value.points.length > 0 ? tripData.value.points[0].position : [98.5865, 24.4336],
-      content: DEFAULT_MARKER_ICON,
-      offset: new AMap.Pixel(-6, -6),
+      icon: flyIcon,
+      offset: new AMap.Pixel(-16, -16),
       zIndex: 100
     })
     map.add(movingMarker)
+
+    // 创建飞机和汽车的 AMap.Icon（使用 assets 中的 SVG）
+    flyIcon = new AMap.Icon({ size: new AMap.Size(32, 32), image: flySvgUrl, imageSize: new AMap.Size(32, 32) })
+    carIcon = new AMap.Icon({ size: new AMap.Size(32, 32), image: carSvgUrl, imageSize: new AMap.Size(32, 32) })
 
     if (tripData.value.points.length > 0) {
       // 初始化时只显示出发点 dot，其余隐藏
@@ -700,11 +709,10 @@ function planAndAnimate() {
  */
 function animateSegment(pathCoords, travelType) {
   if (!isPlaying.value || !pathCoords || pathCoords.length < 1) return
-  const iconContent = travelType === 'drive'
-    ? '<div style="font-size:24px">🚗</div>'
-    : '<div style="font-size:24px">✈️</div>'
-  movingMarker && movingMarker.setContent(iconContent)
-  movingMarker && movingMarker.setOffset(new AMap.Pixel(-12, -12))
+  // 切换 movingMarker 图标（✈️ SVG 或 🚗 SVG）
+  const icon = travelType === 'drive' ? carIcon : flyIcon
+  movingMarker && movingMarker.setIcon(icon)
+  movingMarker && movingMarker.setOffset(new AMap.Pixel(-16, -16))
   cancelAnim()
   anim.active = true
   anim.departureIdx = currentIndex.value
