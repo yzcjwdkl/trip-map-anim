@@ -2,6 +2,38 @@
   <div class="travel-map">
     <div class="map-container">
       <div id="amap-container" ref="mapContainer"></div>
+      <svg class="ring-overlay" ref="ringOverlay" style="display:none">
+        <defs>
+          <!-- mask: 白色=可见，黑色=隐藏。黑色外圆 + 白色内圆 = 环形可见区域 -->
+          <mask :id="'rm-' + uid">
+            <rect width="100%" height="100%" fill="white"/>
+            <circle :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR" fill="black"/>
+            <circle :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.innerR" fill="white"/>
+          </mask>
+        </defs>
+        <!-- 三层光圈共享同一 mask，内圈从0填满到外圈边界 -->
+        <circle
+          :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR"
+          fill="none"
+          :stroke="'rgba(118,75,162,' + ringState.opacities[0] + ')'"
+          :stroke-width="ringState.weights[0]"
+          :mask="'url(#rm-' + uid + ')'"
+        />
+        <circle
+          :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR"
+          fill="none"
+          :stroke="'rgba(102,126,234,' + ringState.opacities[1] + ')'"
+          :stroke-width="ringState.weights[1]"
+          :mask="'url(#rm-' + uid + ')'"
+        />
+        <circle
+          :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR"
+          fill="none"
+          :stroke="'rgba(102,126,234,' + ringState.opacities[2] + ')'"
+          :stroke-width="ringState.weights[2]"
+          :mask="'url(#rm-' + uid + ')'"
+        />
+      </svg>
     </div>
     <div class="control-panel">
       <!-- 行程摘要 -->
@@ -136,7 +168,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import AMapLoader from '@amap/amap-jsapi-loader'
 import { markerIcons, sampleTrip } from '../data/sampleTrip.js'
 import AddPointDialog from '../components/AddPointDialog.vue'
@@ -155,18 +187,18 @@ let routeDirMap = {}
 // arrival ring — 三层同心圆实现渐变
 const DEFAULT_MARKER_ICON = '<div style="width:12px;height:12px;background:#667eea;border-radius:50%;display:inline-block;"></div>'
 const INVISIBLE_MARKER_ICON = '<div style="width:12px;height:12px;background:transparent;border-radius:50%;display:inline-block;"></div>'
-let arrivalRing1 = null
-let arrivalRing2 = null
-let arrivalRing3 = null
 let arrivalRingAnimId = null
-// ring anim params
-let ringAnim = {
+const uid = Date.now()
+// ringState：驱动 SVG overlay 渲染
+const ringState = ref({
   active: false,
-  startTime: 0,
-  duration: 900,
-  fromRadius: 6,
-  toRadius: 24,
-}
+  screenX: 0,
+  screenY: 0,
+  outerR: 0,   // 外圈半径（固定扩张最大值）
+  innerR: 0,   // 内圈半径（从0→outerR，实现"填满消失"）
+  opacities: [0, 0, 0],
+  weights: [8, 6, 4],  // 三层光圈 stroke 宽度
+})
 // 动画循环状态（全部放在闭包外，用 RAF 驱动）
 let anim = {
   active: false,
@@ -193,16 +225,12 @@ function cancelAnim() {
   if (anim.driving) { anim.driving.search(null); anim.driving = null }
   if (anim.pendingStart) { clearTimeout(anim.pendingStart); anim.pendingStart = null }
   anim.pendingStart = null
-  // 取消到达圆环动画
+  // 取消到达圆环动画（SVG overlay）
+  ringState.value.active = false
   if (arrivalRingAnimId) { cancelAnimationFrame(arrivalRingAnimId); arrivalRingAnimId = null }
-  ringAnim.active = false
-  if (arrivalRing1) arrivalRing1.setOptions({ strokeOpacity: 0, fillOpacity: 0, strokeColor: 'transparent' })
-  if (arrivalRing2) arrivalRing2.setOptions({ strokeOpacity: 0, fillOpacity: 0, strokeColor: 'transparent' })
-  if (arrivalRing3) arrivalRing3.setOptions({ strokeOpacity: 0, fillOpacity: 0, strokeColor: 'transparent' })
-  // cancelAnim 在非播放态停止时重置累积路径
+  const svgEl = document.querySelector('.ring-overlay')
+  if (svgEl) svgEl.style.display = 'none'
   if (!isPlaying.value) { traveledPath = []; return }
-  // 动画内调用 cancelAnim（到达终点），先保护 departureIdx 再清空
-  // 恢复 active=true，使 syncDots 能正确识别出发 dot；外层 cancelAnim 调用（startPlay）isPlaying 才刚被设为 true
   traveledPath = []
 }
 
@@ -277,40 +305,7 @@ onMounted(async () => {
       lineJoin: 'round'
     })
     map.add(mainPolyline)
-    // 到达圆环初始化（三层同心圆，初始完全不可见）
-    arrivalRing1 = new AMap.CircleMarker({
-      center: tripData.value.points.length > 0 ? tripData.value.points[0].position : [98.5865, 24.4336],
-      radius: 6,
-      fillColor: 'rgba(255,255,255,0)',
-      fillOpacity: 0,
-      strokeColor: 'rgba(118,75,162,0)',
-      strokeOpacity: 0,
-      strokeWeight: 0,
-      zIndex: 99
-    })
-    arrivalRing2 = new AMap.CircleMarker({
-      center: tripData.value.points.length > 0 ? tripData.value.points[0].position : [98.5865, 24.4336],
-      radius: 6,
-      fillColor: 'rgba(255,255,255,0)',
-      fillOpacity: 0,
-      strokeColor: 'rgba(102,126,234,0)',
-      strokeOpacity: 0,
-      strokeWeight: 0,
-      zIndex: 100
-    })
-    arrivalRing3 = new AMap.CircleMarker({
-      center: tripData.value.points.length > 0 ? tripData.value.points[0].position : [98.5865, 24.4336],
-      radius: 6,
-      fillColor: 'rgba(255,255,255,0)',
-      fillOpacity: 0,
-      strokeColor: 'rgba(255,255,255,0)',
-      strokeOpacity: 0,
-      strokeWeight: 0,
-      zIndex: 101
-    })
-    map.add(arrivalRing1)
-    map.add(arrivalRing2)
-    map.add(arrivalRing3)
+    // 到达圆环改用 SVG overlay 实现（见模板 ring-overlay），无需在此初始化
 
     trailLine = new AMap.Polyline({
       strokeColor: '#764ba2',
@@ -695,48 +690,54 @@ function maybePan(pos) {
   if (pos[0] < minLng || pos[0] > maxLng || pos[1] < minLat || pos[1] > maxLat) map.panTo(pos)
 }
 
-// ==================== arrival ring anim ====================
+// ==================== arrival ring anim（SVG overlay，内圈填满式消失）====================
 function triggerArrivalRing(pos) {
-  if (!arrivalRing1 || !arrivalRing2 || !arrivalRing3) return
-  if (arrivalRingAnimId) { cancelAnimationFrame(arrivalRingAnimId); arrivalRingAnimId = null }
-  ringAnim.active = true
-  ringAnim.startTime = performance.now()
-  const rings = [arrivalRing1, arrivalRing2, arrivalRing3]
-  const configs = [
-    { color: 'rgba(118,75,162,0.65)' },
-    { color: 'rgba(102,126,234,0.55)' },
-    { color: 'rgba(102,126,234,0.1)' }
-  ]
-  rings.forEach((ring, i) => {
-    ring.setCenter(pos)
-    ring.setRadius(ringAnim.fromRadius)
-    ring.setOptions({ fillOpacity: 0, strokeOpacity: 0, strokeColor: configs[i].color, strokeWeight: 8 })
-  })
-  arrivalRingAnimId = requestAnimationFrame((t) => animRing(t))
+  if (!map) return
+  const mapPos = new AMap.LngLat(pos[0], pos[1])
+  const pixel = map.lngLatToContainer(mapPos)
+  const svgEl = document.querySelector('.ring-overlay')
+  if (!svgEl) return
+  svgEl.style.display = 'block'
+  ringState.value.active = true
+  ringState.value.screenX = pixel.x
+  ringState.value.screenY = pixel.y
+  ringState.value.outerR = 6
+  ringState.value.innerR = 0
+  ringState.value.opacities = [0, 0, 0]
+  ringState.value.weights = [8, 6, 4]
+  if (arrivalRingAnimId) cancelAnimationFrame(arrivalRingAnimId)
+  ringState.value._start = performance.now()
+  arrivalRingAnimId = requestAnimationFrame(animRing)
 }
 
 function animRing(now) {
-  if (!ringAnim.active) return
-  const elapsed = now - ringAnim.startTime
-  const rawT = Math.min(elapsed / ringAnim.duration, 1)
+  const DURATION = 900
+  const MAX_OUTER = 32
+  const MAX_OPACITIES = [0.65, 0.55, 0.1]
   const easeOut = t => 1 - Math.pow(1 - t, 3)
-  const rings = [arrivalRing1, arrivalRing2, arrivalRing3]
-  const delays = [0, 0.08, 0.18]
-  const maxOpacities = [0.65, 0.55, 0.1]
-  rings.forEach((ring, i) => {
-    if (!ring) return
-    const t = Math.max(0, Math.min(1, easeOut((rawT - delays[i]) / (1 - delays[i]))))
-    const radius = ringAnim.fromRadius + (ringAnim.toRadius - ringAnim.fromRadius) * t
-    const opacity = Math.max(0, maxOpacities[i] * (1 - rawT))
-    ring.setRadius(Math.max(radius, 0))
-    ring.setOptions({ strokeOpacity: opacity })
+
+  if (!ringState.value.active) {
+    document.querySelector('.ring-overlay') && (document.querySelector('.ring-overlay').style.display = 'none')
+    arrivalRingAnimId = null
+    return
+  }
+
+  const rawT = Math.min((now - ringState.value._start) / DURATION, 1)
+  // 外圈：6 → 32；内圈：0 → outerR（填满消失）
+  ringState.value.outerR = 6 + (MAX_OUTER - 6) * easeOut(rawT)
+  ringState.value.innerR = ringState.value.outerR * easeOut(rawT)
+  // 三层透明度同步淡出
+  MAX_OPACITIES.forEach((maxOp, i) => {
+    ringState.value.opacities[i] = Math.max(0, maxOp * (1 - rawT))
   })
+
   if (rawT >= 1) {
-    ringAnim.active = false
-    rings.forEach(ring => ring && ring.setOptions({ strokeOpacity: 0, fillOpacity: 0, strokeColor: 'transparent' }))
+    ringState.value.active = false
+    const svgEl = document.querySelector('.ring-overlay')
+    if (svgEl) svgEl.style.display = 'none'
     arrivalRingAnimId = null
   } else {
-    arrivalRingAnimId = requestAnimationFrame((t) => animRing(t))
+    arrivalRingAnimId = requestAnimationFrame(animRing)
   }
 }
 
@@ -835,11 +836,8 @@ onUnmounted(() => {
     map.off && map.off()
     map.destroy()
   }
+  ringState.value.active = false
   if (arrivalRingAnimId) { cancelAnimationFrame(arrivalRingAnimId); arrivalRingAnimId = null }
-  ringAnim.active = false
-  if (arrivalRing1) arrivalRing1.setOptions({ strokeOpacity: 0, fillOpacity: 0, strokeColor: 'transparent' })
-  if (arrivalRing2) arrivalRing2.setOptions({ strokeOpacity: 0, fillOpacity: 0, strokeColor: 'transparent' })
-  if (arrivalRing3) arrivalRing3.setOptions({ strokeOpacity: 0, fillOpacity: 0, strokeColor: 'transparent' })
 })
 </script>
 
@@ -856,6 +854,14 @@ onUnmounted(() => {
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0,0,0,0.1);
   min-width: 0;
+  position: relative;
+}
+.ring-overlay {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 10;
 }
 #amap-container { width: 100%; height: 100%; }
 .control-panel {
