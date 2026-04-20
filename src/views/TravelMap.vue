@@ -714,6 +714,7 @@ function animRing(now) {
   const DURATION = 900
   const MAX_OUTER = 32
   const MAX_OPACITIES = [0.65, 0.55, 0.1]
+  const DELAYS = [0, 0.10, 0.20]   // 每层 ring 的启动延迟（rawT 单位）
   const easeOut = t => 1 - Math.pow(1 - t, 3)
 
   if (!ringState.value.active) {
@@ -723,12 +724,22 @@ function animRing(now) {
   }
 
   const rawT = Math.min((now - ringState.value._start) / DURATION, 1)
-  // 外圈：6 → 32；内圈：0 → outerR（填满消失）
+
+  // 外圈：6 → 32
   ringState.value.outerR = 6 + (MAX_OUTER - 6) * easeOut(rawT)
+  // 内圈：0 → outerR（填满消失）
   ringState.value.innerR = ringState.value.outerR * easeOut(rawT)
-  // 三层透明度同步淡出
+
+  // 三层透明度：各自在自己的延迟时间后才开始淡出（实现错帧扩张视觉效果）
   MAX_OPACITIES.forEach((maxOp, i) => {
-    ringState.value.opacities[i] = Math.max(0, maxOp * (1 - rawT))
+    if (rawT <= DELAYS[i]) {
+      // 还没轮到这层，保持不透明（视觉上"蓄势"）
+      ringState.value.opacities[i] = maxOp
+    } else {
+      // 该层开始淡出
+      const t = (rawT - DELAYS[i]) / (1 - DELAYS[i])
+      ringState.value.opacities[i] = Math.max(0, maxOp * (1 - easeOut(t)))
+    }
   })
 
   if (rawT >= 1) {
