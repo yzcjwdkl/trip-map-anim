@@ -199,8 +199,11 @@ function cancelAnim() {
   if (arrivalRing1) arrivalRing1.setOptions({ strokeOpacity: 0, fillOpacity: 0, strokeColor: 'transparent' })
   if (arrivalRing2) arrivalRing2.setOptions({ strokeOpacity: 0, fillOpacity: 0, strokeColor: 'transparent' })
   if (arrivalRing3) arrivalRing3.setOptions({ strokeOpacity: 0, fillOpacity: 0, strokeColor: 'transparent' })
-  // 非播放态停止时重置累积路径
-  if (!isPlaying.value) traveledPath = []
+  // cancelAnim 在非播放态停止时重置累积路径
+  if (!isPlaying.value) { traveledPath = []; return }
+  // 动画内调用 cancelAnim（到达终点），先保护 departureIdx 再清空
+  // 恢复 active=true，使 syncDots 能正确识别出发 dot；外层 cancelAnim 调用（startPlay）isPlaying 才刚被设为 true
+  traveledPath = []
 }
 
 const mapReady = ref(false)
@@ -351,12 +354,11 @@ onMounted(async () => {
     map.add(movingMarker)
 
     if (tripData.value.points.length > 0) {
+      // 初始化时只显示出发点 dot，其余隐藏
+      allDotMarkers.forEach((dot, i) => { if (dot && i > 0) dot.hide() })
       mainPolyline && mainPolyline.setPath([tripData.value.points[0].position])
       trailLine && trailLine.setPath([tripData.value.points[0].position])
       triggerLabelAppear(allLabelMarkers[0])
-      allDotMarkers[0].show()
-      // 初始化时只显示出发点 dot，其余隐藏
-      allDotMarkers.forEach((dot, i) => { if (dot && i > 0) dot.hide() })
     }
 
     mapReady.value = true
@@ -388,12 +390,12 @@ function onDrop(index) {
   const [movedLabel] = allLabelMarkers.splice(dragIndex.value, 1)
   allLabelMarkers.splice(index, 0, movedLabel)
 
-  // 重新设置 marker 位置
+  // 拖拽排序后重建所有线条
   allDotMarkers.forEach((dot, i) => dot.setCenter(pts[i].position))
   allLabelMarkers.forEach((label, i) => label.setPosition(pts[i].position))
-
-  // 重建主轨迹
-  mainPolyline && mainPolyline.setPath(pts.map(p => p.position))
+  const positions = pts.map(p => p.position)
+  mainPolyline && mainPolyline.setPath(positions)
+  trailLine && trailLine.setPath(positions)
   // 修正 currentIndex
   if (currentIndex.value === dragIndex.value) {
     currentIndex.value = index
@@ -649,13 +651,18 @@ function animLoop(now, pathCoords) {
   movingMarker && movingMarker.setPosition(pos)
   maybePan(pos)
   if (rawT >= 1) {
+    // cancelAnim 会清空 anim.toIdx/departureIdx/active，先保存
+    const arrivedIdx = anim.toIdx
+    const prevDeparture = anim.departureIdx
     cancelAnim()
+    anim.active = true  // cancelAnim 后恢复 active，syncDots 依赖它判断出发 dot
+    anim.departureIdx = arrivedIdx  // 下一段出发 dot 为当前到达 dot
     trailLine && trailLine.setPath(pathCoords)
     // 触发到达动画 + 显示到达 dot/label + 隐藏 movingMarker
     if (isPlaying.value) {
       triggerArrivalRing(anim.to)
-      if (allDotMarkers[anim.toIdx]) allDotMarkers[anim.toIdx].show()
-      triggerLabelAppear(allLabelMarkers[anim.toIdx])
+      if (allDotMarkers[arrivedIdx]) allDotMarkers[arrivedIdx].show()
+      triggerLabelAppear(allLabelMarkers[arrivedIdx])
     }
     movingMarker && movingMarker.setContent(INVISIBLE_MARKER_ICON)
     animTimer = setTimeout(() => {
@@ -663,7 +670,7 @@ function animLoop(now, pathCoords) {
       // 累积路径：用 traveledPath 追加新段，避免重复追加上段全量路径
       traveledPath = [...traveledPath, ...pathCoords]
       mainPolyline && mainPolyline.setPath(traveledPath)
-      currentIndex.value = anim.toIdx
+      currentIndex.value = arrivedIdx
       syncDots()
       animTimer = setTimeout(() => { if (isPlaying.value) planAndAnimate() }, 800)
     }, 0)
@@ -737,6 +744,19 @@ function animRing(now) {
 function triggerLabelAppear(label) {
   if (!label) return
   label.show()
+  // 先瞬间透明，再触发 CSS fade-in 动画
+  const el = label.getContentDom()
+  if (el) {
+    el.style.opacity = '0'
+    el.style.transition = 'none'
+    // rAF 确保浏览器下一帧重绘（不用 setTimeout 避免延迟）
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        el.style.transition = 'opacity 0.45s ease-out'
+        el.style.opacity = '1'
+      })
+    })
+  }
 }
 
 // ==================== 点位操作 ====================
