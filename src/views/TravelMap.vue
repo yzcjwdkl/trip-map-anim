@@ -807,6 +807,13 @@ function maybePan(pos) {
  */
 function triggerArrivalRing(pos) {
   if (!map) return
+  // 若上一轮光环还未结束，强制终止并隐藏，防止新光环叠加
+  if (ringState.value.active) {
+    if (arrivalRingAnimId) cancelAnimationFrame(arrivalRingAnimId)
+    ringState.value.active = false
+    const prev = document.querySelector('.ring-overlay')
+    if (prev) prev.style.display = 'none'
+  }
   const mapPos = new AMap.LngLat(pos[0], pos[1])
   const pixel = map.lngLatToContainer(mapPos)
   const svgEl = document.querySelector('.ring-overlay')
