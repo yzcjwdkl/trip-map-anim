@@ -4,40 +4,20 @@
       <div id="amap-container" ref="mapContainer"></div>
       <svg class="ring-overlay" ref="ringOverlay" style="display:none">
         <defs>
-          <!-- ring1 mask -->
-          <mask :id="'rm1-' + uid">
+          <!-- 黑色外圆 = 遮罩（隐藏），白色内圆 = 可见。配合 innerR 实现"填满消失" -->
+          <mask :id="'rm-' + uid">
             <rect width="100%" height="100%" fill="white"/>
-            <circle :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR1" fill="black"/>
-            <circle :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR1 * ringState.fillT" fill="white"/>
-          </mask>
-          <!-- ring2 mask -->
-          <mask :id="'rm2-' + uid">
-            <rect width="100%" height="100%" fill="white"/>
-            <circle :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR2" fill="black"/>
-            <circle :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR2 * ringState.fillT" fill="white"/>
-          </mask>
-          <!-- ring3 mask -->
-          <mask :id="'rm3-' + uid">
-            <rect width="100%" height="100%" fill="white"/>
-            <circle :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR3" fill="black"/>
-            <circle :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR3 * ringState.fillT" fill="white"/>
+            <circle :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR" fill="black"/>
+            <circle :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.innerR" fill="white"/>
           </mask>
         </defs>
-        <!-- 三层光圈各自独立半径、错帧扩张 -->
+        <!-- 单光环：外圈扩张 + 内圈填满 + 透明度渐变 -->
         <circle
-          :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR1"
-          fill="none" :stroke="'rgba(118,75,162,' + ringState.opacities[0] + ')'"
-          :stroke-width="ringState.weights[0]" :mask="'url(#rm1-' + uid + ')'"
-        />
-        <circle
-          :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR2"
-          fill="none" :stroke="'rgba(102,126,234,' + ringState.opacities[1] + ')'"
-          :stroke-width="ringState.weights[1]" :mask="'url(#rm2-' + uid + ')'"
-        />
-        <circle
-          :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR3"
-          fill="none" :stroke="'rgba(102,126,234,' + ringState.opacities[2] + ')'"
-          :stroke-width="ringState.weights[2]" :mask="'url(#rm3-' + uid + ')'"
+          :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR"
+          fill="none"
+          :stroke="'rgba(102,126,234,' + ringState.opacity + ')'"
+          :stroke-width="ringState.strokeW"
+          :mask="'url(#rm-' + uid + ')'"
         />
       </svg>
     </div>
@@ -195,18 +175,15 @@ const DEFAULT_MARKER_ICON = '<div style="width:12px;height:12px;background:#667e
 const INVISIBLE_MARKER_ICON = '<div style="width:12px;height:12px;background:transparent;border-radius:50%;display:inline-block;"></div>'
 let arrivalRingAnimId = null
 const uid = Date.now()
-// ringState：驱动 SVG overlay 渲染
-// 三层 ring 各自有独立半径，实现错帧扩张（像水波纹一样层层外扩）
+// ringState：驱动 SVG 单光环 overlay
 const ringState = ref({
   active: false,
   screenX: 0,
   screenY: 0,
-  // 每层独立的外圈半径（各自从 6 扩张到 32）
-  outerR1: 0, outerR2: 0, outerR3: 0,
-  // 三层共用同一个内圈填满进度（内圈从 0 填到各自 outerRi）
-  fillT: 0,   // 0→1，控制内圈填满程度
-  opacities: [0, 0, 0],
-  weights: [8, 6, 4],
+  outerR: 0,   // 外圈半径（6 → 32）
+  innerR: 0,   // 内圈半径（0 → outerR，内圈填满实现"消失"）
+  opacity: 0,  // 透明度 0.65 → 0
+  strokeW: 8,  // stroke 宽度
 })
 // 动画循环状态（全部放在闭包外，用 RAF 驱动）
 let anim = {
@@ -710,12 +687,10 @@ function triggerArrivalRing(pos) {
   ringState.value.active = true
   ringState.value.screenX = pixel.x
   ringState.value.screenY = pixel.y
-  ringState.value.outerR1 = 6
-  ringState.value.outerR2 = 6
-  ringState.value.outerR3 = 6
-  ringState.value.fillT = 0
-  ringState.value.opacities = [0, 0, 0]
-  ringState.value.weights = [8, 6, 4]
+  ringState.value.outerR = 6
+  ringState.value.innerR = 0
+  ringState.value.opacity = 0.65
+  ringState.value.strokeW = 8
   if (arrivalRingAnimId) cancelAnimationFrame(arrivalRingAnimId)
   ringState.value._start = performance.now()
   arrivalRingAnimId = requestAnimationFrame(animRing)
@@ -724,8 +699,6 @@ function triggerArrivalRing(pos) {
 function animRing(now) {
   const DURATION = 900
   const MAX_OUTER = 32
-  const MAX_OPACITIES = [0.65, 0.55, 0.1]
-  const DELAYS = [0, 0.12, 0.24]   // 三层 ring 各自的启动延迟
   const easeOut = t => 1 - Math.pow(1 - t, 3)
 
   if (!ringState.value.active) {
@@ -736,42 +709,12 @@ function animRing(now) {
 
   const rawT = Math.min((now - ringState.value._start) / DURATION, 1)
 
-  // 三层 ring 各自独立半径扩张，错帧效果
-  const radii = [ringState.value.outerR1, ringState.value.outerR2, ringState.value.outerR3]
-  DELAYS.forEach((delay, i) => {
-    if (rawT <= delay) {
-      radii[i] = 6  // 未启动，保持初始小半径
-    } else {
-      const t = (rawT - delay) / (1 - delay)
-      radii[i] = 6 + (MAX_OUTER - 6) * easeOut(t)
-    }
-  })
-  ringState.value.outerR1 = radii[0]
-  ringState.value.outerR2 = radii[1]
-  ringState.value.outerR3 = radii[2]
-
-  // 内圈填满进度（0→1，内外圈一起在最后一刻填满消失）
-  ringState.value.fillT = easeOut(rawT)
-
-  // 三层透明度：各自在延迟前保持不透明，之后淡出
-  MAX_OPACITIES.forEach((maxOp, i) => {
-    if (rawT <= DELAYS[i]) {
-      ringState.value.opacities[i] = maxOp
-    } else {
-      const t = (rawT - DELAYS[i]) / (1 - DELAYS[i])
-      ringState.value.opacities[i] = Math.max(0, maxOp * (1 - easeOut(t)))
-    }
-  })
-
-  if (rawT >= 1) {
-    ringState.value.active = false
-    const svgEl = document.querySelector('.ring-overlay')
-    if (svgEl) svgEl.style.display = 'none'
-    arrivalRingAnimId = null
-  } else {
-    arrivalRingAnimId = requestAnimationFrame(animRing)
-  }
-}
+  // 外圈：6 → 32
+  ringState.value.outerR = 6 + (MAX_OUTER - 6) * easeOut(rawT)
+  // 内圈：0 → outerR（内圈边界扩大，直到填满外圈，实现"填满消失"）
+  ringState.value.innerR = ringState.value.outerR * easeOut(rawT)
+  // 透明度：0.65 → 0
+  ringState.value.opacity = Math.max(0, 0.65 * (1 - easeOut(rawT)))
 
   if (rawT >= 1) {
     ringState.value.active = false
