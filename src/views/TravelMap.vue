@@ -200,6 +200,13 @@ let anim = {
   pendingStart: null,
 }
 
+/**
+ * cancelAnim — 取消当前动画段
+ *   - 停止 RAF 循环、zoom/rotation interval
+ *   - 关闭 driving 搜索
+ *   - 关闭 SVG 光环（ringState.active=false，隐藏 overlay）
+ *   - 若暂停（非播放态）：清空 traveledPath；若播放中调用（到达终点场景）：保留 traveledPath
+ */
 function cancelAnim() {
   anim.active = false
   if (anim.rafId) cancelAnimationFrame(anim.rafId)
@@ -266,6 +273,11 @@ const currentPoint = computed(() => tripData.value.points ? tripData.value.point
 const progressPercent = computed(() => tripData.value.points && tripData.value.points.length ? (currentIndex.value / tripData.value.points.length) * 100 : 0)
 
 // ==================== 地图初始化 ====================
+/**
+ * 初始化高德地图，创建 mainPolyline、trailLine
+ * 遍历所有点位创建 dot 标记和 label 标记（点击跳转）
+ * 地图加载完成后设置 mapReady=true 解锁播放按钮
+ */
 window._AMapSecurityConfig = {
   securityJsCode: import.meta.env.VITE_AMAP_SECURITY_CODE
 }
@@ -350,6 +362,9 @@ onMounted(async () => {
 })
 
 // ==================== 拖拽排序 ====================
+/**
+ * HTML5 拖拽排序：onDragStart 记录索引 → onDragOver 标记位置 → onDrop 交换数组并同步地图标记
+ */
 function onDragStart(index, event) {
   dragIndex.value = index
   event.dataTransfer.effectAllowed = 'move'
@@ -395,6 +410,11 @@ function onDragEnd() {
 }
 
 // ==================== 编辑弹窗 ====================
+/**
+ * openEditDialog — 打开编辑弹窗，填充当前点位数据到 editForm
+ * closeEditDialog — 关闭弹窗
+ * saveEdit        — 保存：更新点位数据 + 同步地图标记 + 重建主轨迹
+ */
 function openEditDialog(index, point) {
   editingIndex.value = index
   editForm.value = {
@@ -431,7 +451,12 @@ function saveEdit() {
 }
 
 // ==================== dot 显示同步 ====================
-// isPlaying 时：出发 dot + 已到达 dot（<= currentIndex）显示；非播放时：全部显示
+/**
+ * syncDots — 控制所有 dot 的显示/隐藏
+ * - 播放中：出发 dot（departureIdx）+ 已到达 dot（<= currentIndex）显示，其他隐藏
+ * - 非播放：全部显示
+ * 目的：动画进行中 dot 不会消失，到达后才显示新 dot
+ */
 function syncDots() {
   allDotMarkers.forEach((dot, i) => {
     if (!dot) return
@@ -443,6 +468,18 @@ function syncDots() {
 }
 
 // ==================== 播放控制 ====================
+/**
+ * togglePlay — 播放/暂停切换
+ * startPlay  — 开始播放：
+ *   1. cancelAnim 清理上一段动画
+ *   2. 恢复 traveledPath（起点→currentIndex 的已完成路径）
+ *   3. 若当前点位不在视野内则平移，等待后再开始规划
+ *   4. 调用 planAndAnimate 开始第一段
+ * pausePlay  — 暂停：cancelAnim + isPlaying=false + 清理 pending timer
+ * resetTrip  — 重置到起点：清空所有状态，重建初始画面
+ * nextStep   — 手动下一步（非自动播放）：单段推进，累积 traveledPath
+ * jumpTo     — 跳转任意点位：重置 traveledPath 到该点，触发 label 淡入
+ */
 function togglePlay() {
   isPlaying.value ? pausePlay() : startPlay()
 }
@@ -525,6 +562,14 @@ function jumpTo(index) {
 }
 
 // ==================== 核心：规划 + 动画 ====================
+/**
+ * planAndAnimate — 规划下一段动画
+ *   1. 若启用地图旋转：等待 rotation 完成后再 zoom
+ *   2. 若不启用：直接 zoom
+ *   3. zoom 到位后根据 travelType 选择路径：
+ *      - fly（飞机）：用贝塞尔弧线 makeArcPath
+ *      - drive（驾车）：调用高德驾车 API，拿到路线节点后 animateSegment
+ */
 function planAndAnimate() {
   if (!isPlaying.value || !map || !AMap) return
   if (currentIndex.value >= tripData.value.points.length - 1) { pausePlay(); return }
@@ -601,6 +646,12 @@ function planAndAnimate() {
 }
 
 // 沿指定路径动画 — 单 RAF 循环，时间轴驱动
+/**
+ * animateSegment — 开始一段动画
+ *   1. 切换 movingMarker 图标（✈️ 或 🚗）
+ *   2. cancelAnim 清理，初始化 anim 状态（departureIdx、toIdx、duration）
+ *   3. 启动 RAF 循环 animLoop
+ */
 function animateSegment(pathCoords, travelType) {
   if (!isPlaying.value || !pathCoords || pathCoords.length < 1) return
   const iconContent = travelType === 'drive'
@@ -621,6 +672,20 @@ function animateSegment(pathCoords, travelType) {
   anim.rafId = requestAnimationFrame((now) => animLoop(now, pathCoords))
 }
 
+/**
+ * animLoop — RAF 驱动的时间轴动画循环（逐帧）
+ *   1. 计算 elapsed → rawT → eased（easeOut 缓动）
+ *   2. interpolatePathCoord 根据 eased 插值当前位置
+ *   3. 更新 trailLine（跟随线，从起点到当前位置）
+ *   4. 更新 movingMarker 位置
+ *   5. maybePan：若跑出视野边界，平移地图
+ *   6. rawT >= 1（到达终点）：
+ *      - cancelAnim（清理 RAF/interval）
+ *      - triggerArrivalRing 触发 SVG 光环动画
+ *      - 显示到达 dot 和 label
+ *      - 隐藏 movingMarker
+ *      - 累积 traveledPath，延迟 800ms 后开始下一段 planAndAnimate
+ */
 function animLoop(now, pathCoords) {
   if (!anim.active || !pathCoords || pathCoords.length < 1) return
   const elapsed = now - anim.startTime
@@ -660,6 +725,9 @@ function animLoop(now, pathCoords) {
   }
 }
 
+/**
+ * maybePan — 视野自适应：检测 movingMarker 是否在安全区内，超出则平移地图
+ */
 function maybePan(pos) {
   if (!map) return
   const bounds = map.getBounds()
@@ -676,7 +744,20 @@ function maybePan(pos) {
   if (pos[0] < minLng || pos[0] > maxLng || pos[1] < minLat || pos[1] > maxLat) map.panTo(pos)
 }
 
-// ==================== arrival ring anim（SVG overlay，内圈填满式消失）====================
+// ==================== arrival ring（SVG 光环）====================
+/**
+ * triggerArrivalRing(pos) — 触发光环动画
+ *   1. 将地图坐标转为屏幕像素坐标
+ *   2. 显示 SVG overlay
+ *   3. 初始化 ringState：outerR=6、innerR=0、opacity=0.65
+ *   4. 启动 RAF 循环 animRing
+ *
+ * animRing — SVG 光环动画（900ms）
+ *   - outerR：6 → 32（easeOut 扩张）
+ *   - innerR：0 → outerR（内圈边界扩大，实现"填满消失"）
+ *   - opacity：0.65 → 0（透明度渐变）
+ *   mask 原理：黑色外圆遮罩 + 白色内圆可见 = 环形视觉效果
+ */
 function triggerArrivalRing(pos) {
   if (!map) return
   const mapPos = new AMap.LngLat(pos[0], pos[1])
@@ -726,7 +807,13 @@ function animRing(now) {
   }
 }
 
-// ==================== label 显示 ====================
+/**
+ * triggerLabelAppear(label) — 标签淡入
+ *   1. label.show() 立即显示
+ *   2. 双 requestAnimationFrame 触发 CSS transition
+ *   3. opacity 0 → 1，45ms ease-out 淡入动画
+ * 依赖 AMap Marker 的 getContentDom() API
+ */
 function triggerLabelAppear(label) {
   if (!label) return
   label.show()
@@ -746,6 +833,12 @@ function triggerLabelAppear(label) {
 }
 
 // ==================== 点位操作 ====================
+/**
+ * onAddPoint       — 从弹窗新增点位：创建 dot + label，加入数组，重建轨迹
+ * deletePoint      — 删除点位：解绑事件，移除地图标记，从数组删除，重建轨迹
+ * toggleSegmentTravelType — 切换段间出行方式（fly/drive）
+ * getTypeName       — 类型值 → 显示文字（food→🍜 美食 等）
+ */
 function onAddPoint(point) {
   const newPoint = {
     id: Date.now(),
@@ -812,6 +905,12 @@ function getTypeName(type) {
   return names[type] || '📍'
 }
 
+/**
+ * onUnmounted — 组件销毁
+ *   - 暂停播放、取消动画
+ *   - 解绑所有 label click listeners
+ *   - 销毁地图实例（释放高德 API 资源）
+ */
 onUnmounted(() => {
   pausePlay()
   cancelAnim()
