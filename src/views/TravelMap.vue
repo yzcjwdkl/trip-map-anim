@@ -569,6 +569,51 @@ function jumpTo(index) {
  *   3. zoom 到位后根据 travelType 选择路径：
  *      - fly（飞机）：用贝塞尔弧线 makeArcPath
  *      - drive（驾车）：调用高德驾车 API，拿到路线节点后 animateSegment
+ *
+ * ─── 点位A → 点位B 完整事件链 ───
+ *
+ * 【第一阶段：出发准备】
+ * planAndAnimate()
+ *   ① allLabelMarkers[prevIdx].hide()     → 隐藏出发点 label
+ *   ② map.setRotation(targetRotation)      → 地图旋转对准目标方向（可选）
+ *   ③ waitRotationDone() — interval 检测旋转到位
+ *   ④ map.setZoom(targetZoom)             → 调整视野 zoom（两点跨度大则放大）
+ *   ⑤ waitZoomDone() — interval 检测 zoom 到位
+ *   ⑥ map.setCenter(from)                 → 中心对准出发点
+ *   ⑦ 400ms 延迟
+ *   ⑧ 根据 travelType:
+ *      - fly:   animateSegment(makeArcPath(), 'fly')
+ *      - drive: driving.search() → API 返回路线 → animateSegment(路线节点, 'drive')
+ *
+ * 【第二阶段：动画进行中】
+ * animateSegment()
+ *   ⑨ movingMarker 图标切换为 ✈️ 或 🚗
+ *   ⑩ cancelAnim() — 清理上一段的 RAF/interval/driving
+ *   ⑪ anim.active=true, anim.departureIdx=当前点索引
+ *   ⑫ requestAnimationFrame(animLoop) — 启动逐帧循环
+ *
+ * animLoop() — 每帧执行（约60fps）
+ *   ⑬ 计算 elapsed → rawT → eased（easeOut缓动）
+ *   ⑭ interpolatePathCoord(pathCoords, eased) → 当前经纬度
+ *   ⑮ trailLine.setPath(buildTrailPath())   → 跟随线：从起点到当前位置
+ *   ⑯ movingMarker.setPosition(pos)          → 移动图标位置更新
+ *   ⑰ maybePan(pos)                          → 跑出视野边界则平移地图
+ *
+ * 【第三阶段：到达终点】
+ * animLoop() 检测 rawT >= 1
+ *   ⑱ cancelAnim() — 停止 RAF、zoom/rotation interval
+ *   ⑲ trailLine.setPath(完整路径) — 跟随线画到终点
+ *   ⑳ triggerArrivalRing(目标坐标) — 触发 SVG 光环动画（外扩+填满消失）
+ *   ㉑ allDotMarkers[到达点].show()  — 显示到达点 dot
+ *   ㉒ triggerLabelAppear(到达label) — 到达点 label 淡入
+ *   ㉓ movingMarker.setContent(INVISIBLE_MARKER_ICON) — 隐藏移动图标
+ *
+ * animTimer 800ms 后（队列下一段）
+ *   ㉔ traveledPath 累积新段路径
+ *   ㉕ mainPolyline.setPath(traveledPath) — 主轨迹线延伸
+ *   ㉖ currentIndex 更新到新点位
+ *   ㉗ syncDots() — dot 显示状态同步
+ *   ㉘ animTimer = setTimeout(planAndAnimate, 800) — 规划下一段
  */
 function planAndAnimate() {
   if (!isPlaying.value || !map || !AMap) return
@@ -757,6 +802,8 @@ function maybePan(pos) {
  *   - innerR：0 → outerR（内圈边界扩大，实现"填满消失"）
  *   - opacity：0.65 → 0（透明度渐变）
  *   mask 原理：黑色外圆遮罩 + 白色内圆可见 = 环形视觉效果
+ *
+ * 光环触发时机：animLoop 检测 rawT >= 1 时调用（见事件链 ⑳）
  */
 function triggerArrivalRing(pos) {
   if (!map) return
