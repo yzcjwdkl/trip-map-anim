@@ -164,11 +164,10 @@ import { getBearing, calcFitZoom, getSegmentDuration, interpolatePathCoord, buil
 let map = null
 let AMap = null
 let mainPolyline = null
-// ==================== marker icon（AMap.Icon + SVG）====================
-import flySvgUrl from '../assets/fj.svg'
-import carSvgUrl from '../assets/car.svg'
-let flyIcon = null
-let carIcon = null
+// ==================== marker icon（content HTML — 可靠，避免 AMap.Icon 异步加载导致图标消失）====================
+// 飞机/汽车 SVG 用作背景图（URL 来自 vite 打包后的 assets）
+const FLY_SVG_CONTENT = `<div style="width:32px;height:32px;background:url('/assets/fj.svg') center/contain no-repeat;"></div>`
+const CAR_SVG_CONTENT = `<div style="width:32px;height:32px;background:url('/assets/car.svg') center/contain no-repeat;"></div>`
 
 let movingMarker = null
 let trailLine = null
@@ -346,15 +345,11 @@ onMounted(async () => {
 
     movingMarker = new AMap.Marker({
       position: tripData.value.points.length > 0 ? tripData.value.points[0].position : [98.5865, 24.4336],
-      icon: flyIcon,
+      content: FLY_SVG_CONTENT,
       offset: new AMap.Pixel(-16, -16),
       zIndex: 100
     })
     map.add(movingMarker)
-
-    // 创建飞机和汽车的 AMap.Icon（使用 assets 中的 SVG）
-    flyIcon = new AMap.Icon({ size: new AMap.Size(32, 32), image: flySvgUrl, imageSize: new AMap.Size(32, 32) })
-    carIcon = new AMap.Icon({ size: new AMap.Size(32, 32), image: carSvgUrl, imageSize: new AMap.Size(32, 32) })
 
     if (tripData.value.points.length > 0) {
       // 初始化时只显示出发点 dot，其余隐藏
@@ -710,8 +705,8 @@ function planAndAnimate() {
 function animateSegment(pathCoords, travelType) {
   if (!isPlaying.value || !pathCoords || pathCoords.length < 1) return
   // 切换 movingMarker 图标（✈️ SVG 或 🚗 SVG）
-  const icon = travelType === 'drive' ? carIcon : flyIcon
-  movingMarker && movingMarker.setIcon(icon)
+  const iconContent = travelType === 'drive' ? CAR_SVG_CONTENT : FLY_SVG_CONTENT
+  movingMarker && movingMarker.setContent(iconContent)
   movingMarker && movingMarker.setOffset(new AMap.Pixel(-16, -16))
   cancelAnim()
   anim.active = true
@@ -823,6 +818,11 @@ function triggerArrivalRing(pos) {
     ringState.value.active = false
     const prev = document.querySelector('.ring-overlay')
     if (prev) prev.style.display = 'none'
+  }
+  // 安全校验：确保坐标有效，避免 Pixel(NaN, NaN)
+  if (!pos || !Array.isArray(pos) || pos.length < 2 || isNaN(pos[0]) || isNaN(pos[1])) {
+    console.warn('triggerArrivalRing: 无效坐标', pos)
+    return
   }
   const mapPos = new AMap.LngLat(pos[0], pos[1])
   const pixel = map.lngLatToContainer(mapPos)
