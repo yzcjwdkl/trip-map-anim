@@ -1,0 +1,187 @@
+/* =========================================
+   CSS Design Tokens — Warm Natural Palette
+   ========================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap');
+
+:root {
+  /* Brand colors — warm terracotta */
+  --color-brand:       #C17F59;
+  --color-brand-light: #D4A283;
+  --color-brand-dark:  #9B6345;
+
+  /* Backgrounds — warm cream */
+  --color-bg:          #FDF8F3;
+  --color-surface:     #F5EDE4;
+  --color-surface-2:   #EDE4D8;
+  --color-card:        #FFFFFF;
+
+  /* Text */
+  --color-text:        #3D2E24;
+  --color-text-2:      #7A6655;
+  --color-text-3:      #A89485;
+
+  /* Accent — warm gold */
+  --color-accent:      #D4A04A;
+  --color-accent-bg:   #F5EDD8;
+
+  /* Functional */
+  --color-border:      #E0D4C6;
+  --color-border-2:    #D0C2B0;
+  --color-success:     #6B9E78;
+  --color-warning:     #D4A04A;
+  --color-danger:      #C17F59;
+
+  /* Shadows — warm tint */
+  --shadow-sm:  0 1px 3px rgba(61, 46, 36, 0.06);
+  --shadow-md:  0 4px 12px rgba(61, 46, 36, 0.08);
+  --shadow-lg:  0 8px 24px rgba(61, 46, 36, 0.10);
+
+  /* Radius */
+  --radius-sm:  6px;
+  --radius-md:  12px;
+  --radius-lg:  20px;
+
+  /* Spacing — 4pt scale */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Typography */
+  --font-display: 'Cormorant', Georgia, serif;
+  --font-body:    'Instrument Sans', system-ui, sans-serif;
+
+  /* Transitions */
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --transition-fast:   150ms var(--ease-out-quart);
+  --transition-normal: 250ms var(--ease-out-quart);
+  --transition-slow:   400ms var(--ease-out-quart);
+}
+
+/* =========================================
+   Global Reset & Base
+   ========================================= */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: var(--color-brand);
+  text-decoration: none;
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+input, textarea, select {
+  font-family: var(--font-body);
+}
+
+img, svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* =========================================
+   Scrollbar — warm tinted
+   ========================================= */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-2);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-3);
+}
+
+/* =========================================
+   Typography helpers
+   ========================================= */
+
+.font-display { font-family: var(--font-display); }
+
+.text-1 { font-size: 12px; line-height: 1.5; color: var(--color-text-3); }
+.text-2 { font-size: 13px; line-height: 1.5; color: var(--color-text-2); }
+.text-3 { font-size: 15px; line-height: 1.6; color: var(--color-text); }
+
+/* =========================================
+   Button base
+   ========================================= */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--color-brand);
+  color: #fff;
+}
+.btn-primary:hover {
+  background: var(--color-brand-dark);
+}
+.btn-primary:active {
+  transform: scale(0.97);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--color-text-2);
+  border: 1px solid var(--color-border);
+}
+.btn-ghost:hover {
+  background: var(--color-surface);
+  border-color: var(--color-border-2);
+  color: var(--color-text);
+}
+
+.btn-sm {
+  padding: var(--space-1) var(--space-3);
+  font-size: 13px;
+}

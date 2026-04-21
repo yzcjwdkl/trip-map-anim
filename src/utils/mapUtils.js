@@ -159,3 +159,23 @@ export function haversineDistance(pos1, pos2) {
     Math.cos(toRad(pos1[1])) * Math.cos(toRad(pos2[1])) * Math.sin(dLng / 2) ** 2
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
+
+/**
+ * Ease out quart — 0..1 → 0..1
+ */
+export function easeOutQuart(t) {
+  return 1 - Math.pow(1 - t, 4)
+}
+
+/**
+ * 直线距离（米），基于 Haversine
+ */
+export function calcDistance(p1, p2) {
+  const R = 6371000
+  const toRad = d => d * Math.PI / 180
+  const dLat = toRad(p2[1] - p1[1])
+  const dLng = toRad(p2[0] - p1[0])
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(p1[1])) * Math.cos(toRad(p2[1])) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}

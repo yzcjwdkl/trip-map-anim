@@ -91,30 +91,31 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, nextTick } from 'vue'
 import AMapLoader from '@amap/amap-jsapi-loader'
+import { useTripStore } from '@/stores/trip'
+import type { TripPoint } from '@/types/trip'
 
 const props = defineProps({ mapReady: Boolean })
-const emit = defineEmits(['add'])
+const tripStore = useTripStore()
 
 const showDialog = ref(false)
 const keyword = ref('')
 const searching = ref(false)
 const searched = ref(false)
-const searchResults = ref([])
+const searchResults = ref<any[]>([])
 const selectedIndex = ref(-1)
-const selectedPOI = ref(null)
+const selectedPOI = ref<any>(null)
 const pointName = ref('')
-const pointType = ref('attraction')
+const pointType = ref<TripPoint['type']>('attraction')
 const pointDesc = ref('')
 
-let AMap = null
-let placeSearch = null
-let previewMap = null
-let initPromise = null  // 防止并发初始化
+let AMap: any = null
+let placeSearch: any = null
+let previewMap: any = null
+let initPromise: Promise<void> | null = null  // 防止并发初始化
 
-// 初始化高德和搜索服务
 async function initAMap() {
   if (AMap) return
   if (initPromise) return initPromise
@@ -124,17 +125,13 @@ async function initAMap() {
     }
     AMap = await AMapLoader.load({
       key: import.meta.env.VITE_AMAP_KEY,
-    version: '2.0',
-    plugin: ['AMap.PlaceSearch']
-  })
-  // 确保插件已加载
-  await new Promise(resolve => {
-    if (AMap.PlaceSearch) {
-      resolve()
-    } else {
-      AMap.plugin('AMap.PlaceSearch', resolve)
-    }
-  })
+      version: '2.0',
+      plugin: ['AMap.PlaceSearch']
+    })
+    await new Promise<void>(resolve => {
+      if (AMap.PlaceSearch) { resolve() }
+      else { AMap.plugin('AMap.PlaceSearch', resolve) }
+    })
     placeSearch = new AMap.PlaceSearch({
       city: '全国',
       citylimit: false,
@@ -146,8 +143,6 @@ async function initAMap() {
 }
 
 async function openDialog() {
-  console.log('----')
-  // 防止重复打开
   if (showDialog.value) return
   showDialog.value = true
   keyword.value = ''
@@ -160,7 +155,7 @@ async function openDialog() {
   searched.value = false
   await nextTick()
   await initAMap()
-  document.querySelector('.search-box input').focus()
+  document.querySelector('.search-box input')?.focus()
 }
 
 function closeDialog() {
@@ -176,10 +171,10 @@ function onSearchInput() {
   }
   searching.value = true
   searched.value = false
-  placeSearch.search(keyword.value, function(status, result) {
+  placeSearch.search(keyword.value, function(status: string, result: any) {
     searching.value = false
     searched.value = true
-    if (status === 'complete' && result && result.poiList && result.poiList.pois) {
+    if (status === 'complete' && result?.poiList?.pois) {
       searchResults.value = result.poiList.pois
       selectedIndex.value = -1
       selectedPOI.value = null
@@ -189,20 +184,17 @@ function onSearchInput() {
   })
 }
 
-function selectResult(item, index) {
+function selectResult(item: any, index: number) {
   selectedIndex.value = index
   selectedPOI.value = item
   pointName.value = item.name
 
   nextTick(() => {
-    if (previewMap) {
-      previewMap.destroy()
-    }
+    if (previewMap) previewMap.destroy()
     previewMap = new AMap.Map('preview-amap', {
       zoom: 15,
       center: [item.location.lng, item.location.lat]
     })
-    // 标记选中点
     new AMap.Marker({
       position: [item.location.lng, item.location.lat],
       content: '<div style="font-size:28px">📍</div>',
@@ -213,11 +205,14 @@ function selectResult(item, index) {
 
 function confirmAdd() {
   if (!selectedPOI.value) return
-  emit('add', {
+  const newId = Math.max(0, ...tripStore.points.map(p => p.id)) + 1
+  tripStore.addPoint({
+    id: newId,
     name: pointName.value,
     position: [selectedPOI.value.location.lng, selectedPOI.value.location.lat],
     type: pointType.value,
-    description: pointDesc.value
+    description: pointDesc.value,
+    travelTypeToHere: 'fly'
   })
   closeDialog()
 }
@@ -227,113 +222,122 @@ function confirmAdd() {
 .add-point-btn {
   width: 100%;
   padding: 10px;
-  background: linear-gradient(135deg, #667eea22, #764ba222);
-  border: 2px dashed #667eea;
-  border-radius: 12px;
-  color: #667eea;
+  background: var(--color-accent-bg);
+  border: 2px dashed var(--color-brand-light);
+  border-radius: var(--radius-md);
+  color: var(--color-brand);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 10px;
+  transition: all var(--transition-fast);
+  margin-bottom: var(--space-3);
 }
 .add-point-btn:hover {
-  background: linear-gradient(135deg, #667eea33, #764ba233);
+  background: var(--color-surface-2);
   border-style: solid;
 }
 
 .dialog-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5);
+  background: rgba(61,46,36,0.45);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
 }
 .dialog {
-  background: white;
-  border-radius: 16px;
+  background: var(--color-card);
+  border-radius: var(--radius-lg);
   width: 520px;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  box-shadow: var(--shadow-lg);
 }
 .dialog-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid #eee;
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--color-border);
 }
-.dialog-header h3 { margin: 0; font-size: 18px; color: #333; }
-.close-btn { background: none; border: none; font-size: 18px; cursor: pointer; color: #999; padding: 4px; }
-.close-btn:hover { color: #333; }
+.dialog-header h3 { margin: 0; font-size: 18px; color: var(--color-text); font-family: var(--font-display); }
+.close-btn { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--color-text-3); padding: 4px; }
+.close-btn:hover { color: var(--color-text); }
 
-.dialog-body { padding: 20px 24px; flex: 1; overflow-y: auto; }
+.dialog-body { padding: var(--space-5) var(--space-6); flex: 1; overflow-y: auto; }
 
-.search-box { display: flex; gap: 8px; margin-bottom: 12px; }
+.search-box { display: flex; gap: var(--space-2); margin-bottom: var(--space-3); }
 .search-box input {
   flex: 1;
-  padding: 10px 14px;
-  border: 1px solid #ddd;
-  border-radius: 10px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   font-size: 14px;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color var(--transition-fast);
+  background: var(--color-card);
+  color: var(--color-text);
 }
-.search-box input:focus { border-color: #667eea; }
+.search-box input:focus { border-color: var(--color-brand); }
 .search-btn {
-  padding: 10px 18px;
-  background: #667eea;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-brand);
   color: white;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 14px;
   white-space: nowrap;
+  transition: background var(--transition-fast);
 }
+.search-btn:hover { background: var(--color-brand-dark); }
 
-.results-list { max-height: 200px; overflow-y: auto; margin-bottom: 12px; }
+.results-list { max-height: 200px; overflow-y: auto; margin-bottom: var(--space-3); }
 .result-item {
-  padding: 10px 12px;
-  border-radius: 8px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
   cursor: pointer;
   margin-bottom: 4px;
-  transition: background 0.15s;
+  transition: background var(--transition-fast);
 }
-.result-item:hover, .result-item.selected { background: #f0f0f8; }
-.result-name { font-size: 14px; font-weight: 500; color: #333; }
-.result-address { font-size: 12px; color: #999; margin-top: 2px; }
+.result-item:hover, .result-item.selected { background: var(--color-surface); }
+.result-name { font-size: 14px; font-weight: 500; color: var(--color-text); }
+.result-address { font-size: 12px; color: var(--color-text-3); margin-top: 2px; }
 
-.empty-hint { text-align: center; padding: 20px; color: #999; font-size: 13px; }
+.empty-hint { text-align: center; padding: var(--space-5); color: var(--color-text-3); font-size: 13px; }
 
-.preview-map { margin: 12px 0; border-radius: 12px; overflow: hidden; }
+.preview-map { margin: var(--space-3) 0; border-radius: var(--radius-md); overflow: hidden; }
 .preview-amap { width: 100%; height: 180px; }
 
-.point-form { display: flex; flex-direction: column; gap: 12px; }
-.form-row { display: flex; align-items: center; gap: 12px; }
-.form-row label { width: 50px; font-size: 13px; color: #666; flex-shrink: 0; }
+.point-form { display: flex; flex-direction: column; gap: var(--space-3); }
+.form-row { display: flex; align-items: center; gap: var(--space-3); }
+.form-row label { width: 50px; font-size: 13px; color: var(--color-text-2); flex-shrink: 0; }
 .form-row input, .form-row select {
   flex: 1;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
   font-size: 13px;
   outline: none;
+  background: var(--color-card);
+  color: var(--color-text);
+  transition: border-color var(--transition-fast);
 }
-.form-row input:focus, .form-row select:focus { border-color: #667eea; }
-.coords { font-size: 12px; color: #999; font-family: monospace; }
+.form-row input:focus, .form-row select:focus { border-color: var(--color-brand); }
+.coords { font-size: 12px; color: var(--color-text-3); font-family: monospace; }
 
 .dialog-footer {
   display: flex;
-  gap: 12px;
-  padding: 16px 24px 20px;
-  border-top: 1px solid #eee;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6) var(--space-5);
+  border-top: 1px solid var(--color-border);
 }
-.dialog-footer .btn { flex: 1; padding: 10px; border-radius: 10px; font-size: 14px; border: none; cursor: pointer; }
-.dialog-footer .btn-secondary { background: #f0f0f0; color: #666; }
-.dialog-footer .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+.dialog-footer .btn { flex: 1; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); font-size: 14px; border: none; cursor: pointer; transition: all var(--transition-fast); }
+.dialog-footer .btn-secondary { background: var(--color-surface); color: var(--color-text-2); }
+.dialog-footer .btn-secondary:hover { background: var(--color-surface-2); }
+.dialog-footer .btn-primary { background: var(--color-brand); color: white; }
+.dialog-footer .btn-primary:hover { background: var(--color-brand-dark); }
 .dialog-footer .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
