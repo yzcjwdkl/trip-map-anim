@@ -1,5 +1,5 @@
 <template>
-  <div class="travel-map">
+  <div class="travel-map" :class="{ 'is-fullscreen': props.fullscreen }">
     <div class="map-container" :class="{ 'is-fullscreen': props.fullscreen }">
       <button class="fullscreen-btn" @click="emit('toggle-fullscreen')" title=" '全屏'">⛶</button>
       <div id="amap-container" ref="mapContainer"></div>
@@ -1064,8 +1064,11 @@ onUnmounted(() => {
 .travel-map {
   display: flex;
   gap: 24px;
-  flex: 1;
-  min-height: 0;
+  height: calc(100vh - 96px);
+  overflow: hidden;
+}
+.travel-map.is-fullscreen {
+  height: 100vh;
 }
 .map-container {
   flex: 1;
@@ -1075,7 +1078,6 @@ onUnmounted(() => {
   box-shadow: 0 8px 32px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04);
   position: relative;
   border: 1px solid rgba(0,0,0,0.04);
-  min-height: 400px;
 }
 .map-container.is-fullscreen {
   border-radius: 0 !important;
@@ -1085,6 +1087,7 @@ onUnmounted(() => {
   max-height: 100vh !important;
   height: 100vh !important;
   flex: 1 !important;
+  position: relative;
 }
 .map-container.is-fullscreen #amap-container {
   height: 100vh !important;
@@ -1219,7 +1222,7 @@ onUnmounted(() => {
 .toolbar-speed { flex: 1; min-width: 0; }
 .toolbar-close { flex-shrink: 0; }
 
-#amap-container { width: 100%; height: 100%; min-height: 400px; }
+#amap-container { width: 100%; height: 100%; min-height: 0; }
 .control-panel {
   width: 360px;
   flex-shrink: 0;
@@ -1230,7 +1233,8 @@ onUnmounted(() => {
   border: 1px solid rgba(0,0,0,0.04);
   overflow-y: auto;
   overflow-x: hidden;
-  max-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ===== 状态栏 ===== */
@@ -1308,6 +1312,7 @@ onUnmounted(() => {
   flex: 1;
   overflow-y: auto;
   padding-right: 2px;
+  min-height: 0;
 }
 .stops-header {
   display: flex;
@@ -1561,6 +1566,10 @@ onUnmounted(() => {
     flex-direction: column;
     min-height: 0;
     gap: 16px;
+    height: auto;
+  }
+  .travel-map.is-fullscreen {
+    height: 100vh;
   }
   .map-container {
     min-height: 300px;
