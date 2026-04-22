@@ -1,7 +1,7 @@
 <template>
   <!-- 添加点位按钮 -->
   <button class="add-point-btn" @click="openDialog" :disabled="!props.mapReady">
-    ➕ 添加点位
+    添加点位
   </button>
 
   <!-- 弹窗 -->
@@ -146,7 +146,6 @@ async function initAMap() {
 }
 
 async function openDialog() {
-  console.log('----')
   // 防止重复打开
   if (showDialog.value) return
   showDialog.value = true
@@ -225,74 +224,71 @@ function confirmAdd() {
 
 <style scoped>
 .add-point-btn {
-  width: 100%;
-  padding: 10px;
-  background: linear-gradient(135deg, #667eea22, #764ba222);
-  border: 2px dashed #667eea;
-  border-radius: 12px;
-  color: #667eea;
-  font-size: 14px;
-  font-weight: 600;
+  padding: 9px 14px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(129,140,248,0.05));
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 10px;
+  color: #6366f1;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
-  margin-bottom: 10px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .add-point-btn:hover {
-  background: linear-gradient(135deg, #667eea33, #764ba233);
-  border-style: solid;
+  background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(129,140,248,0.08));
+  border-color: rgba(99,102,241,0.3);
+}
+.add-point-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .dialog-overlay {
-  position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15,23,42,0.4); backdrop-filter: blur(6px); display: flex; align-items: center;
+  justify-content: center; z-index: 1000; padding: 24px;
 }
 .dialog {
-  background: white;
-  border-radius: 16px;
-  width: 520px;
-  max-height: 90vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  background: white; border-radius: 20px; width: 100%; max-width: 480px;
+  max-height: 90vh; display: flex; flex-direction: column;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.12), 0 10px 20px rgba(0,0,0,0.08);
 }
 .dialog-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid #eee;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px; border-bottom: 1px solid #f8fafc;
 }
-.dialog-header h3 { margin: 0; font-size: 18px; color: #333; }
-.close-btn { background: none; border: none; font-size: 18px; cursor: pointer; color: #999; padding: 4px; }
-.close-btn:hover { color: #333; }
-
-.dialog-body { padding: 20px 24px; flex: 1; overflow-y: auto; }
+.dialog-header h3 { margin: 0; font-size: 15px; color: #1e293b; font-weight: 600; }
+.close-btn { background: none; border: none; font-size: 16px; cursor: pointer; color: #94a3b8; padding: 6px; border-radius: 6px; transition: all 0.15s ease; }
+.close-btn:hover { background: #f1f5f9; color: #1e293b; }
+.dialog-body { padding: 24px; flex: 1; overflow-y: auto; }
 
 .search-box { display: flex; gap: 8px; margin-bottom: 12px; }
 .search-box input {
   flex: 1;
   padding: 10px 14px;
-  border: 1px solid #ddd;
-  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
   font-size: 14px;
   outline: none;
-  transition: border-color 0.2s;
+  background: #fafbfc;
+  color: #1e293b;
+  transition: border-color 0.15s ease;
 }
-.search-box input:focus { border-color: #667eea; }
+.search-box input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.08); background: white; }
+.search-box input::placeholder { color: #cbd5e1; }
 .search-btn {
   padding: 10px 18px;
-  background: #667eea;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
   color: white;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 500;
   white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.25);
 }
 
 .results-list { max-height: 200px; overflow-y: auto; margin-bottom: 12px; }
@@ -303,37 +299,39 @@ function confirmAdd() {
   margin-bottom: 4px;
   transition: background 0.15s;
 }
-.result-item:hover, .result-item.selected { background: #f0f0f8; }
-.result-name { font-size: 14px; font-weight: 500; color: #333; }
-.result-address { font-size: 12px; color: #999; margin-top: 2px; }
+.result-item:hover, .result-item.selected { background: rgba(99,102,241,0.06); }
+.result-name { font-size: 13px; font-weight: 500; color: #1e293b; }
+.result-address { font-size: 11px; color: #94a3b8; margin-top: 2px; }
 
-.empty-hint { text-align: center; padding: 20px; color: #999; font-size: 13px; }
+.empty-hint { text-align: center; padding: 20px; color: #94a3b8; font-size: 13px; }
 
-.preview-map { margin: 12px 0; border-radius: 12px; overflow: hidden; }
-.preview-amap { width: 100%; height: 180px; }
+.preview-map { margin: 12px 0; border-radius: 10px; overflow: hidden; }
+.preview-amap { width: 100%; height: 160px; }
 
-.point-form { display: flex; flex-direction: column; gap: 12px; }
-.form-row { display: flex; align-items: center; gap: 12px; }
-.form-row label { width: 50px; font-size: 13px; color: #666; flex-shrink: 0; }
+.point-form { display: flex; flex-direction: column; gap: 14px; }
+.form-row { display: flex; flex-direction: column; gap: 6px; }
+.form-row label { font-size: 12px; color: #64748b; font-weight: 500; }
 .form-row input, .form-row select {
   flex: 1;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
+  padding: 10px 14px;
+  border: 1px solid #e2e8f0;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 14px;
   outline: none;
+  background: #fafbfc;
+  color: #1e293b;
+  transition: all 0.15s ease;
 }
-.form-row input:focus, .form-row select:focus { border-color: #667eea; }
-.coords { font-size: 12px; color: #999; font-family: monospace; }
+.form-row input:focus, .form-row select:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.08); background: white; }
+.form-row input::placeholder { color: #cbd5e1; }
+.coords { font-size: 12px; color: #94a3b8; font-family: ui-monospace, 'SF Mono', Menlo, monospace; padding: 8px 12px; background: #fafbfc; border-radius: 6px; }
 
 .dialog-footer {
-  display: flex;
-  gap: 12px;
-  padding: 16px 24px 20px;
-  border-top: 1px solid #eee;
+  display: flex; gap: 10px; padding: 20px 24px; border-top: 1px solid #f8fafc;
 }
-.dialog-footer .btn { flex: 1; padding: 10px; border-radius: 10px; font-size: 14px; border: none; cursor: pointer; }
-.dialog-footer .btn-secondary { background: #f0f0f0; color: #666; }
-.dialog-footer .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+.dialog-footer .btn { flex: 1; padding: 11px; border-radius: 10px; font-size: 13px; border: none; cursor: pointer; font-weight: 500; }
+.dialog-footer .btn-secondary { background: #f1f5f9; color: #64748b; }
+.dialog-footer .btn-secondary:hover { background: #e2e8f0; color: #1e293b; }
+.dialog-footer .btn-primary { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; }
 .dialog-footer .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>

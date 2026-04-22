@@ -1,6 +1,7 @@
 <template>
   <div class="travel-map">
-    <div class="map-container">
+    <div class="map-container" :class="{ 'is-fullscreen': props.fullscreen }">
+      <button class="fullscreen-btn" @click="emit('toggle-fullscreen')" title=" '全屏'">⛶</button>
       <div id="amap-container" ref="mapContainer"></div>
       <svg class="ring-overlay" ref="ringOverlay" style="display:none">
         <defs>
@@ -20,85 +21,124 @@
           :mask="'url(#rm-' + uid + ')'"
         />
       </svg>
-    </div>
-    <div class="control-panel">
-      <!-- 行程摘要 -->
-      <div class="trip-summary">
-        <div class="summary-title">📊 行程摘要</div>
-        <div class="summary-stats">
-          <div class="stat-item">
-            <div class="stat-value">{{ tripData.points.length }}</div>
-            <div class="stat-label">地点</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value">{{ tripStats.totalDistance > 1000 ? (tripStats.totalDistance / 1000).toFixed(0) + 'k' : tripStats.totalDistance.toFixed(0) }}</div>
-            <div class="stat-label">总公里数</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-value">{{ tripStats.totalDuration }}</div>
-            <div class="stat-label">总时长</div>
-          </div>
-        </div>
-      </div>
 
-      <div class="trip-info">
-        <h2>{{ tripData.title }}</h2>
-        <p class="trip-date">{{ tripData.date }}</p>
-      </div>
-      <div class="current-stop" v-if="currentPoint">
-        <div class="stop-icon">{{ markerIcons[currentPoint.type] || '📍' }}</div>
-        <div class="stop-info">
-          <div class="stop-name">{{ currentPoint.name }}</div>
-          <div class="stop-desc">{{ currentPoint.description }}</div>
+      <!-- 全屏工具栏 -->
+      <div class="fullscreen-toolbar" v-if="props.fullscreen">
+        <div class="toolbar-section">
+          <div class="toolbar-progress">
+            <div class="toolbar-progress-bar">
+              <div class="toolbar-progress-fill" :style="{ width: progressPercent + '%' }"></div>
+            </div>
+            <div class="toolbar-progress-info">
+              <span class="toolbar-current">{{ currentPoint?.name }}</span>
+              <span class="toolbar-arrow">→</span>
+              <span class="toolbar-next">{{ nextPoint?.name || '终点' }}</span>
+            </div>
+          </div>
+          <div class="toolbar-controls">
+            <button class="toolbar-btn" @click="resetTrip" title="重置">⏮</button>
+            <button class="toolbar-btn toolbar-btn-primary" @click="togglePlay" :disabled="!mapReady" :title="isPlaying ? '暂停' : '播放'">
+              {{ isPlaying ? '⏸' : '▶' }}
+            </button>
+            <button class="toolbar-btn" @click="nextStep" title="下一步">⏭</button>
+            <button class="toolbar-btn" @click="emit('toggle-fullscreen')" title="退出全屏">✕</button>
+          </div>
         </div>
+      </div>
+    </div>
+
+    <div class="control-panel" v-show="!props.fullscreen">
+      <!-- 状态栏：当前点位 + 地点数 -->
+      <div class="status-bar" v-if="currentPoint">
+        <div class="status-main">
+          <div class="status-icon">{{ markerIcons[currentPoint.type] || '📍' }}</div>
+          <div class="status-info">
+            <div class="status-name">{{ currentPoint.name }}</div>
+            <div class="status-desc">{{ currentPoint.description }}</div>
+          </div>
+        </div>
+        <div class="status-count">
+          <span class="count-num">{{ tripData.points.length }}</span>
+          <span class="count-unit">个地点</span>
+        </div>
+        <AddPointDialog @add="onAddPoint" :map-ready="mapReady" class="add-in-status" />
       </div>
       <div class="progress-section">
         <div class="progress-bar">
           <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
         </div>
-        <div class="progress-text">{{ currentIndex }} / {{ tripData.points.length }}</div>
+        <div class="progress-text">
+          <span>当前进度</span>
+          <span>{{ currentIndex + 1 }} / {{ tripData.points.length }}</span>
+        </div>
       </div>
-      <div class="player-controls">
-        <button class="btn btn-secondary" @click="resetTrip">⏮️ 重置</button>
-        <button class="btn btn-primary" @click="togglePlay" :disabled="!mapReady">{{ isPlaying ? '⏸️ 暂停' : '▶️ 播放' }}</button>
-        <button class="btn btn-secondary" @click="nextStep">⏭️ 下一步</button>
+      <div class="controls-row">
+        <div class="player-controls">
+          <button class="btn btn-secondary btn-sm" @click="resetTrip">重置</button>
+          <button class="btn btn-primary btn-sm" @click="togglePlay" :disabled="!mapReady">{{ isPlaying ? '暂停' : '播放' }}</button>
+          <button class="btn btn-secondary btn-sm" @click="nextStep">下一步</button>
+        </div>
       </div>
       <div class="speed-control">
-        <span>速度：</span>
-        <button v-for="s in speeds" :key="s" :class="['ctrl-btn', { active: currentSpeed === s }]" @click="currentSpeed = s">{{ s }}x</button>
-        <button :class="['ctrl-btn', { active: enableMapRotation }]" @click="enableMapRotation = !enableMapRotation" style="margin-left: 8px">🧭 旋转</button>
+        <span class="speed-label">速度</span>
+        <div class="speed-slider-wrap">
+          <el-slider
+            v-model="speedIndex"
+            :marks="speedMarks"
+            step="mark"
+            :show-tooltip="false"
+            @change="currentSpeed = speeds[Math.round(speedIndex / (100 / (speeds.length - 1)))]"
+          />
+        </div>
       </div>
       <div class="stops-list">
-        <h3>行程安排 <span class="point-count">({{ tripData.points.length }})</span></h3>
-        <AddPointDialog @add="onAddPoint" :map-ready="mapReady" />
-        <div
-          v-for="(point, index) in tripData.points"
-          :key="point.id"
-          class="test-flex"
-          :draggable="true"
-          @dragstart="onDragStart(index, $event)"
-          @dragover.prevent="onDragOver(index)"
-          @drop="onDrop(index)"
-          @dragend="onDragEnd"
-          :class="{ 'drag-over': dragOverIndex === index, 'dragging': dragIndex === index }"
-        >
-          <!-- 点位行 -->
-          <div class="stop-item" :class="{ visited: index < currentIndex, current: index === currentIndex }" @click="jumpTo(index)">
-            <div class="drag-handle">⋮⋮</div>
-            <div class="stop-number">{{ index + 1 }}</div>
-            <div class="stop-details">
-              <div class="stop-name">{{ point.name }}</div>
-              <div class="stop-type">{{ getTypeName(point.type) }}</div>
+        <div class="stops-header">
+          <span class="stops-title">地点</span>
+          <span class="stops-count">{{ tripData.points.length }}</span>
+        </div>
+        <div class="stops-timeline">
+          <div
+            v-for="(point, index) in tripData.points"
+            :key="point.id"
+            class="stop-row"
+            :draggable="true"
+            @dragstart="onDragStart(index, $event)"
+            @dragover.prevent="onDragOver(index)"
+            @drop="onDrop(index)"
+            @dragend="onDragEnd"
+            :class="{ 'drag-over': dragOverIndex === index, 'dragging': dragIndex === index }"
+          >
+            <!-- 时间线 -->
+            <div class="stop-timeline">
+              <div class="timeline-dot" :class="{ active: index === currentIndex, visited: index < currentIndex }"></div>
+              <div v-if="index < tripData.points.length - 1" class="timeline-line" :class="{ visited: index < currentIndex }"></div>
             </div>
-            <div class="stop-icon-small">{{ markerIcons[point.type] || '📍' }}</div>
-            <button class="edit-point-btn" @click.stop="openEditDialog(index, point)" title="编辑">✎</button>
-            <button class="delete-point-btn" @click.stop="deletePoint(index)" title="删除">✕</button>
-          </div>
-          <!-- 段间出行方式 -->
-          <div v-if="index < tripData.points.length - 1" class="segment-travel-type" @click.stop="toggleSegmentTravelType(index)">
-            <span :class="['travel-badge', point.travelTypeToHere]">
-              {{ point.travelTypeToHere === 'drive' ? '🚗 驾车' : '✈️ 飞机' }}
-            </span>
+            <!-- 内容区 -->
+            <div class="stop-content" :class="{ visited: index < currentIndex, current: index === currentIndex }" @click="jumpTo(index)">
+              <div class="stop-main">
+                <div class="stop-name-row">
+                  <span class="stop-name">{{ point.name }}</span>
+                  <span class="stop-emoji">{{ markerIcons[point.type] || '📍' }}</span>
+                </div>
+                <div class="stop-meta">
+                  <span class="stop-type">{{ getTypeName(point.type) }}</span>
+                  <span v-if="point.description" class="stop-desc">{{ point.description }}</span>
+                </div>
+              </div>
+              <div class="stop-actions">
+                <button class="action-btn edit-btn" @click.stop="openEditDialog(index, point)" title="编辑">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="action-btn delete-btn" @click.stop="deletePoint(index)" title="删除">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+              </div>
+              <!-- 出行方式切换 -->
+              <div v-if="index < tripData.points.length - 1" class="travel-toggle" @click.stop="toggleSegmentTravelType(index)">
+                <span class="travel-icon">{{ point.travelTypeToHere === 'drive' ? '🚗' : '✈️' }}</span>
+                <span class="travel-text">{{ point.travelTypeToHere === 'drive' ? '驾车' : '飞机' }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -154,10 +194,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import {ref, computed, onMounted, onUnmounted, nextTick} from 'vue'
 import AMapLoader from '@amap/amap-jsapi-loader'
 import { markerIcons, sampleTrip } from '../data/sampleTrip.js'
 import AddPointDialog from '../components/AddPointDialog.vue'
+
+const props = defineProps({ fullscreen: Boolean })
+const emit = defineEmits(['toggle-fullscreen'])
 import { getBearing, calcFitZoom, getSegmentDuration, interpolatePathCoord, buildTrailPath, makeArcPath, isPosInView, haversineDistance } from '../utils/mapUtils.js'
 
 // 地图实例
@@ -166,8 +209,8 @@ let AMap = null
 let mainPolyline = null
 // ==================== marker icon（content HTML — 可靠，避免 AMap.Icon 异步加载导致图标消失）====================
 // 飞机/汽车 SVG 用作背景图（URL 来自 vite 打包后的 assets）
-const FLY_SVG_CONTENT = `<div style="width:32px;height:32px;background:url('/assets/fj.svg') center/contain no-repeat;"></div>`
-const CAR_SVG_CONTENT = `<div style="width:32px;height:32px;background:url('/assets/car.svg') center/contain no-repeat;"></div>`
+const FLY_SVG_CONTENT = `<div style="width:32px;height:32px;background:url('/assets/fj.png') center/contain no-repeat;"></div>`
+const CAR_SVG_CONTENT = `<div style="width:32px;height:32px;background:url('/assets/car.png') center/contain no-repeat;"></div>`
 
 let movingMarker = null
 let trailLine = null
@@ -243,8 +286,15 @@ const currentIndex = ref(0)
 const isPlaying = ref(false)
 const currentSpeed = ref(1)
 const defaultTravelType = ref('fly')
-const enableMapRotation = ref(false)
+
 const speeds = [0.5, 1, 2, 4]
+const speedIndex = ref((speeds.indexOf(currentSpeed.value) / (speeds.length - 1)) * 100)
+const speedMarks = ref({
+  0: '0.5x',
+  33.33: '1x',
+  66.67: '2x',
+  100: '4x',
+})
 let animTimer = null
 
 // 拖拽排序
@@ -275,6 +325,7 @@ const tripStats = computed(() => {
 })
 
 const currentPoint = computed(() => tripData.value.points ? tripData.value.points[currentIndex.value] : null)
+const nextPoint = computed(() => tripData.value.points && currentIndex.value < tripData.value.points.length - 1 ? tripData.value.points[currentIndex.value + 1] : null)
 const progressPercent = computed(() => tripData.value.points && tripData.value.points.length ? (currentIndex.value / tripData.value.points.length) * 100 : 0)
 
 // ==================== 地图初始化 ====================
@@ -294,6 +345,23 @@ onMounted(async () => {
       version: '2.0',
       plugins: ['AMap.Scale', 'AMap.InfoWindow', 'AMap.Driving']
     })
+    console.log('AMap 加载完成', AMap)
+
+    // 等待容器有有效像素尺寸（防止 AMap 初始化时 container size 为 0 导致 Pixel(NaN)）
+    const container = document.getElementById('amap-container')
+    const waitForSize = (el) => {
+      return new Promise(resolve => {
+        if (el.offsetWidth > 0 && el.offsetHeight > 0) { resolve(); return }
+        const ro = new ResizeObserver(() => {
+          if (el.offsetWidth > 0 && el.offsetHeight > 0) { ro.disconnect(); resolve() }
+        })
+        ro.observe(el)
+        // 超时兜底：500ms 后强制继续
+        setTimeout(() => { ro.disconnect(); resolve() }, 500)
+      })
+    }
+    await waitForSize(container)
+    console.log('容器尺寸 OK:', container.offsetWidth, container.offsetHeight)
 
     map = new AMap.Map('amap-container', {
       zoom: 14,
@@ -301,6 +369,7 @@ onMounted(async () => {
       center: tripData.value.points.length > 0 ? tripData.value.points[0].position : [98.5865, 24.4336],
       viewMode: '3D'
     })
+    console.log('地图初始化完成', map)
 
     mainPolyline = new AMap.Polyline({
       strokeColor: '#667eea',
@@ -308,6 +377,7 @@ onMounted(async () => {
       lineJoin: 'round'
     })
     map.add(mainPolyline)
+    console.log('mainPolyline 初始化完成', mainPolyline)
     // 到达圆环改用 SVG overlay 实现（见模板 ring-overlay），无需在此初始化
 
     trailLine = new AMap.Polyline({
@@ -315,8 +385,9 @@ onMounted(async () => {
       strokeWeight: 4,
       lineJoin: 'round'
     })
+    console.log('trailLine 初始化完成', trailLine)
     map.add(trailLine)
-
+    console.log('tripData.value',tripData.value)
     tripData.value.points.forEach((point) => {
       const dot = new AMap.CircleMarker({
         center: point.position,
@@ -329,6 +400,7 @@ onMounted(async () => {
       map.add(dot)
       allDotMarkers.push(dot)
     })
+    console.log('dot 标记初始化完成', allDotMarkers)
 
     tripData.value.points.forEach((point, index) => {
       const label = new AMap.Marker({
@@ -342,6 +414,7 @@ onMounted(async () => {
       map.add(label)
       allLabelMarkers.push(label)
     })
+    console.log('label 标记初始化完成', allLabelMarkers)
 
     movingMarker = new AMap.Marker({
       position: tripData.value.points.length > 0 ? tripData.value.points[0].position : [98.5865, 24.4336],
@@ -349,6 +422,7 @@ onMounted(async () => {
       offset: new AMap.Pixel(-16, -16),
       zIndex: 100
     })
+    console.log('movingMarker 初始化完成', movingMarker)
     map.add(movingMarker)
 
     if (tripData.value.points.length > 0) {
@@ -356,10 +430,17 @@ onMounted(async () => {
       allDotMarkers.forEach((dot, i) => { if (dot && i > 0) dot.hide() })
       mainPolyline && mainPolyline.setPath([tripData.value.points[0].position])
       trailLine && trailLine.setPath([tripData.value.points[0].position])
+      console.log('last--step',allLabelMarkers[0])
       triggerLabelAppear(allLabelMarkers[0])
     }
 
     mapReady.value = true
+
+    // 监听容器尺寸变化，防止窗口缩放后地图计算 NaN
+    const ro = new ResizeObserver(() => {
+      if (map) map.resize()
+    })
+    ro.observe(document.getElementById('amap-container'))
 
   } catch (e) {
     console.error('地图加载失败:', e)
@@ -659,40 +740,28 @@ function planAndAnimate() {
           animateSegment(makeArcPath(from, to, currentIndex.value, 30, routeDirMap), 'fly')
         } else {
           const driving = new AMap.Driving({ policy: AMap.DrivingPolicy.LEAST_TIME, extensions: 'all', hideMarkers: true })
-          driving.search(from, to, function(status, result) {
-            if (!isPlaying.value) return
-            if (status === 'complete' && result && result.routes && result.routes[0]) {
-              const pathPoints = []
-              result.routes[0].steps.forEach(step => {
-                if (step.path) step.path.forEach(p => pathPoints.push([p.lng, p.lat]))
-              })
-              animateSegment(pathPoints.length > 1 ? (pathPoints[0] = from, pathPoints) : [from, to], 'drive')
-            } else {
-              animateSegment([from, to], 'drive')
-            }
-          })
+          if (!from || !to || from.some(v => isNaN(v)) || to.some(v => isNaN(v))) {
+            animateSegment([from, to], 'drive')
+          } else {
+            driving.search(from, to, function(status, result) {
+              if (!isPlaying.value) return
+              if (status === 'complete' && result && result.routes && result.routes[0]) {
+                const pathPoints = []
+                result.routes[0].steps.forEach(step => {
+                  if (step.path) step.path.forEach(p => pathPoints.push([p.lng, p.lat]))
+                })
+                animateSegment(pathPoints.length > 1 ? (pathPoints[0] = from, pathPoints) : [from, to], 'drive')
+              } else {
+                animateSegment([from, to], 'drive')
+              }
+            })
+          }
         }
       }, 400)
     })
   }
 
-  if (!enableMapRotation.value) { setTimeout(doZoomStep, 400); return }
-
-  const targetRotation = getBearing(from, to)
-  map.setRotation(targetRotation)
-  function waitRotationDone(callback) {
-    if (!isPlaying.value) return
-    const startTime = Date.now()
-    anim.rotInterval = setInterval(() => {
-      if (!isPlaying.value) { clearInterval(anim.rotInterval); anim.rotInterval = null; return }
-      if (Math.abs(map.getRotation() - targetRotation) < 0.5) {
-        clearInterval(anim.rotInterval); anim.rotInterval = null; setTimeout(callback, 400)
-      } else if (Date.now() - startTime > 1500) {
-        clearInterval(anim.rotInterval); anim.rotInterval = null; setTimeout(callback, 0)
-      }
-    }, 50)
-  }
-  waitRotationDone(() => { if (isPlaying.value) doZoomStep() })
+  setTimeout(doZoomStep, 400)
 }
 
 // 沿指定路径动画 — 单 RAF 循环，时间轴驱动
@@ -826,6 +895,7 @@ function triggerArrivalRing(pos) {
   }
   const mapPos = new AMap.LngLat(pos[0], pos[1])
   const pixel = map.lngLatToContainer(mapPos)
+  if (isNaN(pixel.x) || isNaN(pixel.y)) return
   const svgEl = document.querySelector('.ring-overlay')
   if (!svgEl) return
   svgEl.style.display = 'block'
@@ -990,19 +1060,34 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ===== 响应式布局 ===== */
+/* ===== 布局 ===== */
 .travel-map {
   display: flex;
   gap: 24px;
-  height: calc(100vh - 140px);
+  flex: 1;
+  min-height: 0;
 }
 .map-container {
   flex: 1;
-  border-radius: 16px;
+  min-height: 0;
+  border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-  min-width: 0;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04);
   position: relative;
+  border: 1px solid rgba(0,0,0,0.04);
+  min-height: 400px;
+}
+.map-container.is-fullscreen {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: none !important;
+  min-height: 100vh !important;
+  max-height: 100vh !important;
+  height: 100vh !important;
+  flex: 1 !important;
+}
+.map-container.is-fullscreen #amap-container {
+  height: 100vh !important;
 }
 .ring-overlay {
   position: absolute;
@@ -1011,164 +1096,544 @@ onUnmounted(() => {
   pointer-events: none;
   z-index: 10;
 }
-#amap-container { width: 100%; height: 100%; }
-.control-panel {
-  width: 380px;
-  flex-shrink: 0;
+
+/* ===== 全屏按钮 ===== */
+.fullscreen-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 20;
+  width: 36px;
+  height: 36px;
+  background: rgba(255,255,255,0.9);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+.fullscreen-btn:hover {
   background: white;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  transform: scale(1.05);
+}
+
+/* ===== 全屏工具栏 ===== */
+.fullscreen-toolbar {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  min-width: 320px;
+  max-width: 90vw;
+  z-index: 30;
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0,0,0,0.1);
   border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+  padding: 12px 20px;
+  overflow: visible;
+}
+.toolbar-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.toolbar-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+.toolbar-progress-bar {
+  width: 80px;
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.toolbar-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #818cf8);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.toolbar-progress-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6366f1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.toolbar-progress-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  overflow: hidden;
+}
+.toolbar-current { color: #1e293b; font-weight: 600; }
+.toolbar-arrow { color: #94a3b8; flex-shrink: 0; }
+.toolbar-next { color: #64748b; }
+.toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.toolbar-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+.toolbar-btn:hover { background: #e2e8f0; color: #1e293b; }
+.toolbar-btn-primary {
+  width: 44px;
+  height: 44px;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: white;
+  font-size: 16px;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.3);
+}
+.toolbar-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(99,102,241,0.4);
+}
+.toolbar-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.toolbar-speed { flex: 1; min-width: 0; }
+.toolbar-close { flex-shrink: 0; }
+
+#amap-container { width: 100%; height: 100%; min-height: 400px; }
+.control-panel {
+  width: 360px;
+  flex-shrink: 0;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.02);
+  border: 1px solid rgba(0,0,0,0.04);
   overflow-y: auto;
+  overflow-x: hidden;
   max-height: 100%;
 }
 
-/* ===== 行程摘要 ===== */
-.trip-summary {
-  background: linear-gradient(135deg, #667eea11, #764ba211);
-  border: 1px solid #667eea22;
-  border-radius: 12px;
+/* ===== 状态栏 ===== */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 14px 16px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(129,140,248,0.03) 100%);
+  border: 1px solid rgba(99,102,241,0.1);
+  border-radius: 14px;
   margin-bottom: 16px;
+  transition: all 0.2s ease;
 }
-.summary-title { font-size: 12px; color: #888; font-weight: 600; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px; }
-.summary-stats { display: flex; gap: 0; }
-.stat-item { flex: 1; text-align: center; }
-.stat-item + .stat-item { border-left: 1px solid #667eea22; }
-.stat-value { font-size: 20px; font-weight: 700; color: #667eea; }
-.stat-label { font-size: 11px; color: #999; margin-top: 2px; }
+.status-bar:hover {
+  border-color: rgba(99,102,241,0.18);
+  box-shadow: 0 2px 12px rgba(99,102,241,0.06);
+}
+.status-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.status-icon { 
+  font-size: 18px; 
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #6366f1, #818cf8);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.status-info { flex: 1; min-width: 0; }
+.status-name { font-weight: 600; font-size: 13px; color: #1e293b; }
+.status-desc { font-size: 11px; color: #94a3b8; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.status-count { 
+  display: flex; 
+  flex-direction: column; 
+  align-items: flex-end; 
+  flex-shrink: 0;
+  margin-right: 10px;
+}
+.count-num { font-size: 22px; font-weight: 700; color: #6366f1; line-height: 1; letter-spacing: -0.02em; }
+.count-unit { font-size: 10px; color: #94a3b8; margin-top: 2px; }
+.add-in-status { flex-shrink: 0; }
 
-/* ===== 通用面板元素 ===== */
-.trip-info { margin-bottom: 16px; }
-.trip-info h2 { margin: 0 0 4px; font-size: 20px; color: #333; }
-.trip-date { margin: 0; color: #888; font-size: 14px; }
-.current-stop { display: flex; align-items: center; gap: 12px; background: linear-gradient(135deg, #667eea22, #764ba222); padding: 14px; border-radius: 12px; margin-bottom: 16px; }
-.stop-icon { font-size: 28px; }
-.stop-info { flex: 1; }
-.stop-name { font-weight: 600; font-size: 15px; color: #333; }
-.stop-desc { font-size: 12px; color: #666; margin-top: 2px; }
 .progress-section { margin-bottom: 16px; }
-.progress-bar { height: 8px; background: #eee; border-radius: 4px; overflow: hidden; }
-.progress-fill { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); border-radius: 4px; transition: width 0.3s; }
-.progress-text { text-align: center; font-size: 12px; color: #888; margin-top: 4px; }
-.player-controls { display: flex; gap: 8px; margin-bottom: 16px; }
-.btn { flex: 1; padding: 10px 12px; border: none; border-radius: 10px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
-.btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
-.btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(102,126,234,0.4); }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-secondary { background: #f0f0f0; color: #666; }
-.btn-secondary:hover { background: #e0e0e0; }
-.speed-control { display: flex; align-items: center; gap: 6px; margin-bottom: 20px; font-size: 13px; color: #666; flex-wrap: wrap; }
-.ctrl-btn { padding: 5px 10px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-size: 12px; transition: all 0.2s; }
-.ctrl-btn.active { background: #667eea; color: white; border-color: #667eea; }
-.ctrl-btn:hover:not(.active) { border-color: #667eea; }
+.progress-bar { height: 3px; background: #f1f5f9; border-radius: 2px; overflow: hidden; position: relative; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, #6366f1, #818cf8); border-radius: 2px; transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+.progress-text { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #94a3b8; margin-top: 8px; }
+.progress-text span:last-child { font-weight: 600; color: #6366f1; }
+
+.controls-row { margin-bottom: 12px; }
+.player-controls { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn { padding: 9px 14px; border: none; border-radius: 10px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.btn-sm { flex: 0 0 auto; }
+.btn-primary { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; box-shadow: 0 2px 8px rgba(99,102,241,0.25); }
+.btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(99,102,241,0.35); }
+.btn-primary:active:not(:disabled) { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+.btn-secondary { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; flex: 0 0 auto; }
+.btn-secondary:hover { background: #f1f5f9; color: #1e293b; border-color: #e2e8f0; }
+
+.speed-control { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+.speed-label { font-weight: 500; color: #94a3b8; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; flex-shrink: 0; padding-top: 6px; }
+.speed-slider-wrap { flex: 1; min-width: 0; }
+.speed-slider-wrap :deep(.el-slider__runway) { background: #e2e8f0; border-radius: 2px; }
+.speed-slider-wrap :deep(.el-slider__bar) { background: linear-gradient(90deg, #6366f1, #818cf8); border-radius: 2px; }
+.speed-slider-wrap :deep(.el-slider__button) { width: 14px; height: 14px; background: white; border: 2px solid #6366f1; border-radius: 50%; box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
+.speed-slider-wrap :deep(.el-slider__stop) { background-color: #818cf8; }
+.speed-slider-wrap :deep(.el-slider__marks) { top: 18px; }
+.speed-slider-wrap :deep(.el-slider__marks-text) { font-size: 11px; color: #94a3b8; font-weight: 500; }
+.speed-slider-wrap :deep(.el-slider__marks-text-active) { color: #6366f1; font-weight: 700; }
 
 /* ===== 点位列表 ===== */
-.stops-list h3 { margin: 0 0 8px; font-size: 13px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
-.stop-item {
+.stops-list {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.stops-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 4px;
+  margin-bottom: 12px;
+}
+.stops-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.stops-count {
+  font-size: 10px;
+  font-weight: 600;
+  color: #cbd5e1;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.stops-timeline {
+  display: flex;
+  flex-direction: column;
+}
+.stop-row {
+  display: flex;
+  gap: 12px;
+  transition: opacity 0.15s ease;
+}
+.stop-row.dragging { opacity: 0.3; }
+.stop-row.drag-over .stop-content { border-color: #6366f1; background: rgba(99,102,241,0.03); }
+
+/* 时间线 */
+.stop-timeline {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 16px;
+  flex-shrink: 0;
+  padding-top: 14px;
+}
+.timeline-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  border: 2px solid #f8fafc;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  z-index: 1;
+}
+.timeline-dot.active {
+  width: 12px;
+  height: 12px;
+  background: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+}
+.timeline-dot.visited {
+  background: #cbd5e1;
+}
+.timeline-line {
+  width: 2px;
+  flex: 1;
+  min-height: 28px;
+  background: #e2e8f0;
+  margin: 4px 0;
+  border-radius: 1px;
+  transition: background 0.2s ease;
+}
+.timeline-line.visited {
+  background: #cbd5e1;
+}
+
+/* 内容区 */
+.stop-content {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-radius: 10px;
+  border: 1px solid transparent;
   cursor: pointer;
-  transition: all 0.2s;
-  width: calc(100% - 0px);
+  transition: all 0.15s ease;
+  margin-bottom: 8px;
+  background: transparent;
 }
-.stop-item:hover { background: #f8f9fa; }
-.stop-item.visited { opacity: 0.6; }
-.stop-item.current { background: linear-gradient(135deg, #667eea22, #764ba222); border-left: 3px solid #667eea; }
-.drag-handle { color: #ccc; font-size: 14px; cursor: grab; flex-shrink: 0; padding: 0 2px; user-select: none; }
-.drag-handle:active { cursor: grabbing; }
-.stop-number { width: 24px; height: 24px; background: #eee; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #666; flex-shrink: 0; }
-.stop-item.current .stop-number, .stop-item.visited .stop-number { background: #667eea; color: white; }
-.stop-details { flex: 1; min-width: 0; }
-.stop-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.stop-type { font-size: 11px; color: #999; }
-.stop-icon-small { font-size: 16px; flex-shrink: 0; }
-.point-count { font-size: 11px; color: #999; font-weight: normal; }
-.edit-point-btn {
-  background: none; border: none; color: #ccc; font-size: 13px; cursor: pointer;
-  padding: 3px; border-radius: 50%; width: 22px; height: 22px;
-  display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0;
+.stop-content:hover {
+  background: #fafbfc;
+  border-color: #f1f5f9;
 }
-.edit-point-btn:hover { background: #eef; color: #667eea; }
-.delete-point-btn {
-  background: none; border: none; color: #ccc; font-size: 13px; cursor: pointer;
-  padding: 3px; border-radius: 50%; width: 22px; height: 22px;
-  display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0;
+.stop-content.visited {
+  opacity: 0.45;
 }
-.delete-point-btn:hover { background: #fee; color: #e33; }
-.segment-travel-type { position: relative; height: 8px; margin: 0; }
-.travel-badge {
-  display: inline-block; padding: 3px 8px; border-radius: 20px; font-size: 11px; cursor: pointer;
-  border: 1px solid transparent; white-space: nowrap;
-  position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%);
-  transition: all 0.2s;
+.stop-content.current {
+  background: linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(129,140,248,0.03) 100%);
+  border-color: rgba(99,102,241,0.15);
 }
-.travel-badge.fly { background: #e8f0fe; color: #1a73e8; }
-.travel-badge.fly:hover { background: #d0e1fd; }
-.travel-badge.drive { background: #fef3e2; color: #e37400; }
-.travel-badge.drive:hover { background: #fde9cc; }
-.test-flex { display: flex; flex-direction: column; margin-bottom: 6px; padding-bottom: 22px; position: relative; transition: opacity 0.2s; }
-.test-flex.dragging { opacity: 0.4; }
-.test-flex.drag-over { border-top: 2px solid #667eea; }
+
+.stop-main {
+  flex: 1;
+  min-width: 0;
+}
+.stop-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.stop-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stop-emoji {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.stop-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.stop-type {
+  font-size: 10px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.stop-desc {
+  font-size: 10px;
+  color: #cbd5e1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stop-actions {
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.stop-content:hover .stop-actions { opacity: 1; }
+.action-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #cbd5e1;
+  transition: all 0.15s ease;
+}
+.edit-btn:hover {
+  background: rgba(99,102,241,0.08);
+  color: #6366f1;
+}
+.delete-btn:hover {
+  background: rgba(239,68,68,0.08);
+  color: #ef4444;
+}
+
+/* 出行方式切换 */
+.travel-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.travel-toggle:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+.travel-toggle.fly {
+  color: #6366f1;
+  background: rgba(99,102,241,0.06);
+  border-color: rgba(99,102,241,0.2);
+}
+.travel-toggle.drive {
+  color: #f59e0b;
+  background: rgba(245,158,11,0.06);
+  border-color: rgba(245,158,11,0.2);
+}
+.travel-icon { font-size: 12px; }
+.travel-text { font-size: 11px; font-weight: 500; }
 
 /* ===== 编辑弹窗 ===== */
 .dialog-overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.5); display: flex; align-items: center;
-  justify-content: center; z-index: 1000;
+  background: rgba(15,23,42,0.4); backdrop-filter: blur(6px); display: flex; align-items: center;
+  justify-content: center; z-index: 1000; padding: 24px;
 }
 .dialog {
-  background: white; border-radius: 16px; width: 460px;
-  max-height: 90vh; display: flex; flex-direction: column;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  background: white; border-radius: 20px; width: 100%; max-width: 420px;
+  max-height: 85vh; display: flex; flex-direction: column;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.15), 0 10px 20px rgba(0,0,0,0.1);
+  animation: dialog-in 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes dialog-in {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 .dialog-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 20px 24px 16px; border-bottom: 1px solid #eee;
+  padding: 20px 24px; border-bottom: 1px solid #f8fafc;
 }
-.dialog-header h3 { margin: 0; font-size: 18px; color: #333; }
-.close-btn { background: none; border: none; font-size: 18px; cursor: pointer; color: #999; padding: 4px; }
-.close-btn:hover { color: #333; }
-.dialog-body { padding: 20px 24px; flex: 1; overflow-y: auto; }
+.dialog-header h3 { margin: 0; font-size: 15px; color: #1e293b; font-weight: 600; }
+.close-btn { background: none; border: none; font-size: 16px; cursor: pointer; color: #94a3b8; padding: 6px; border-radius: 6px; transition: all 0.15s ease; }
+.close-btn:hover { background: #f1f5f9; color: #1e293b; }
+.dialog-body { padding: 24px; flex: 1; overflow-y: auto; }
 .point-form { display: flex; flex-direction: column; gap: 14px; }
-.form-row { display: flex; align-items: center; gap: 12px; }
-.form-row label { width: 56px; font-size: 13px; color: #666; flex-shrink: 0; }
+.form-row { display: flex; flex-direction: column; gap: 6px; }
+.form-row label { font-size: 12px; color: #64748b; font-weight: 500; }
 .form-row input, .form-row select {
-  flex: 1; padding: 8px 12px; border: 1px solid #ddd;
-  border-radius: 8px; font-size: 13px; outline: none;
+  flex: 1; padding: 10px 14px; border: 1px solid #e2e8f0;
+  border-radius: 8px; font-size: 14px; outline: none; background: #fafbfc; color: #1e293b; transition: all 0.15s ease;
 }
-.form-row input:focus, .form-row select:focus { border-color: #667eea; }
-.coords { font-size: 12px; color: #999; font-family: monospace; }
+.form-row input:hover, .form-row select:hover { border-color: #cbd5e1; background: #f8fafc; }
+.form-row input:focus, .form-row select:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.08); background: white; }
+.form-row input::placeholder { color: #cbd5e1; }
+.coords { font-size: 12px; color: #94a3b8; font-family: ui-monospace, 'SF Mono', Menlo, monospace; padding: 8px 12px; background: #fafbfc; border-radius: 6px; }
 .dialog-footer {
-  display: flex; gap: 12px; padding: 16px 24px 20px; border-top: 1px solid #eee;
+  display: flex; gap: 10px; padding: 20px 24px; border-top: 1px solid #f8fafc;
 }
-.dialog-footer .btn { flex: 1; padding: 10px; border-radius: 10px; font-size: 14px; border: none; cursor: pointer; }
-.dialog-footer .btn-secondary { background: #f0f0f0; color: #666; }
-.dialog-footer .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+.dialog-footer .btn { flex: 1; padding: 11px; border-radius: 10px; font-size: 13px; border: none; cursor: pointer; font-weight: 500; }
+.dialog-footer .btn-secondary { background: #f1f5f9; color: #64748b; }
+.dialog-footer .btn-secondary:hover { background: #e2e8f0; color: #1e293b; }
+.dialog-footer .btn-primary { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; }
 
 /* ===== 响应式：移动端 ===== */
 @media (max-width: 768px) {
   .travel-map {
     flex-direction: column;
-    height: auto;
+    min-height: 0;
     gap: 16px;
   }
   .map-container {
-    height: 55vw;
-    min-height: 280px;
+    min-height: 300px;
+    max-height: 380px;
+    border-radius: 16px;
   }
-  #amap-container { height: 100%; }
+  #amap-container { height: 100%; min-height: 300px; }
   .control-panel {
     width: 100%;
     max-height: none;
     overflow-y: visible;
     padding: 16px;
+    border-radius: 16px;
   }
-  .summary-stats { }
+  .player-controls { gap: 8px; }
+  .btn-sm { flex: 1 !important; padding: 11px 12px; }
+  .btn-sm-add { flex: 1 !important; }
   .stop-name { font-size: 14px; }
-  .dialog { width: calc(100vw - 32px); }
+  .dialog { width: calc(100vw - 48px); max-width: none; }
+
+  .fullscreen-toolbar {
+    bottom: 12px;
+    min-width: 280px;
+    padding: 10px 14px;
+  }
+  .toolbar-section {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .toolbar-progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+  .toolbar-progress-bar {
+    width: 60px;
+    flex-shrink: 0;
+  }
+  .toolbar-progress-info {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    flex: 1;
+  }
+  .toolbar-current,
+  .toolbar-next {
+    font-size: 11px;
+    max-width: 50px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .toolbar-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .toolbar-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+  .toolbar-btn-primary {
+    width: 38px;
+    height: 38px;
+    font-size: 14px;
+  }
+  .map-container.is-fullscreen #amap-container { height: 100vh !important; min-height: 0 !important; }
 }
 </style>
