@@ -61,14 +61,14 @@ export function getSegmentDuration(from, to) {
  * @param {number}     eased      0-1，已ease的进度
  */
 export function interpolatePathCoord(pathCoords, eased) {
-  if (!pathCoords || !Array.isArray(pathCoords) || pathCoords.length < 2) return null
+  if (!pathCoords || !Array.isArray(pathCoords) || pathCoords.length < 2) return pathCoords && pathCoords.length > 0 ? pathCoords[0] : null
   const totalSegments = pathCoords.length - 1
   const rawT = Math.min(Math.max(eased, 0), 1) * totalSegments
   const segIdx = Math.min(Math.floor(rawT), totalSegments - 1)
   const segT = rawT - segIdx
   const from = pathCoords[segIdx]
   const to = pathCoords[segIdx + 1]
-  if (!from || !to) return null
+  if (!from || !to) return from || null
   return [from[0] + (to[0] - from[0]) * segT, from[1] + (to[1] - from[1]) * segT]
 }
 
@@ -79,7 +79,7 @@ export function interpolatePathCoord(pathCoords, eased) {
  * @returns {number[][]} 跟随线坐标数组
  */
 export function buildTrailPath(pathCoords, eased) {
-  if (!pathCoords || !Array.isArray(pathCoords) || pathCoords.length < 2) return pathCoords || []
+  if (!pathCoords || !Array.isArray(pathCoords) || pathCoords.length < 2) return []
   const totalSegments = pathCoords.length - 1
   const rawT = Math.min(Math.max(eased, 0), 1) * totalSegments
   const segIdx = Math.min(Math.floor(rawT), totalSegments - 1)

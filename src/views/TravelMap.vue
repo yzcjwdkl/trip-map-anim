@@ -1,147 +1,248 @@
 <template>
   <div class="travel-map" :class="{ 'is-fullscreen': props.fullscreen }">
+
     <div class="map-container" :class="{ 'is-fullscreen': props.fullscreen }">
       <button class="fullscreen-btn" @click="emit('toggle-fullscreen')" title=" '全屏'">⛶</button>
       <div id="amap-container" ref="mapContainer"></div>
       <svg class="ring-overlay" ref="ringOverlay" style="display:none">
         <defs>
-          <!-- 黑色外圆 = 遮罩（隐藏），白色内圆 = 可见。配合 innerR 实现"填满消失" -->
           <mask :id="'rm-' + uid">
             <rect width="100%" height="100%" fill="white"/>
             <circle :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR" fill="black"/>
             <circle :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.innerR" fill="white"/>
           </mask>
         </defs>
-        <!-- 单光环：外圈扩张 + 内圈填满 + 透明度渐变 -->
         <circle
-          :cx="ringState.screenX" :cy="ringState.screenY" :r="ringState.outerR"
-          fill="none"
-          :stroke="'rgba(102,126,234,' + ringState.opacity + ')'"
-          :stroke-width="ringState.strokeW"
+          :cx="ringState.screenX"
+          :cy="ringState.screenY"
+          :r="ringState.outerR"
+          fill="rgba(99,102,241,0.15)"
           :mask="'url(#rm-' + uid + ')'"
         />
       </svg>
-
-      <!-- 全屏工具栏 -->
-      <div class="fullscreen-toolbar" v-if="props.fullscreen">
-        <div class="toolbar-section">
-          <div class="toolbar-progress">
-            <div class="toolbar-progress-bar">
-              <div class="toolbar-progress-fill" :style="{ width: progressPercent + '%' }"></div>
-            </div>
-            <div class="toolbar-progress-info">
-              <span class="toolbar-current">{{ currentPoint?.name }}</span>
-              <span class="toolbar-arrow">→</span>
-              <span class="toolbar-next">{{ nextPoint?.name || '终点' }}</span>
-            </div>
-          </div>
-          <div class="toolbar-controls">
-            <button class="toolbar-btn" @click="resetTrip" title="重置">⏮</button>
-            <button class="toolbar-btn toolbar-btn-primary" @click="togglePlay" :disabled="!mapReady" :title="isPlaying ? '暂停' : '播放'">
-              {{ isPlaying ? '⏸' : '▶' }}
-            </button>
-            <button class="toolbar-btn" @click="nextStep" title="下一步">⏭</button>
-            <button class="toolbar-btn" @click="emit('toggle-fullscreen')" title="退出全屏">✕</button>
-          </div>
-        </div>
+      <div class="moving-dot" ref="movingDot" :class="{ visible: isPlaying }">
+        <div class="dot-ring"></div>
+        <div class="dot-core"></div>
       </div>
     </div>
 
     <div class="control-panel" v-show="!props.fullscreen">
-      <!-- 状态栏：当前点位 + 地点数 -->
-      <div class="status-bar" v-if="currentPoint">
-        <div class="status-main">
-          <div class="status-icon">{{ markerIcons[currentPoint.type] || '📍' }}</div>
-          <div class="status-info">
-            <div class="status-name">{{ currentPoint.name }}</div>
-            <div class="status-desc">{{ currentPoint.description }}</div>
+
+      <!-- ===== 卡片列表视图 ===== -->
+      <div v-if="viewMode === 'list'" class="view-list">
+        <div class="trips-section">
+          <div class="trips-header">
+            <span class="trips-label">行程</span>
+            <span class="trips-count">{{ trips.length }}</span>
+            <button class="trip-add-btn" @click="createTrip()" title="新建行程">+ 新建</button>
+          </div>
+          <div class="trips-list">
+            <div
+              v-for="trip in trips"
+              :key="trip.id"
+              class="trip-card"
+              :class="{ active: trip.id === activeTripId }"
+            >
+              <div class="trip-card-header">
+                <div class="trip-card-info">
+                  <span class="trip-card-name">{{ trip.name }}</span>
+                  <span class="trip-card-meta">{{ trip.points.length }} 个地点</span>
+                </div>
+              </div>
+              <div class="trip-card-summary" v-if="expandedTripIds.has(trip.id)">
+                <span v-if="trip.points.length === 0" class="summary-empty">暂无路线</span>
+                <span v-else class="summary-text">{{ getRouteSummary(trip) }}</span>
+              </div>
+              <div class="trip-card-footer">
+                <button
+                  class="trip-expand-btn"
+                  :class="{ expanded: expandedTripIds.has(trip.id) }"
+                  @click="toggleTripCard(trip.id)"
+                  :title="expandedTripIds.has(trip.id) ? '收起' : '展开'"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="6 9 12 15 18 9"/>
+                  </svg>
+                </button>
+                <div class="footer-right">
+                  <button class="trip-edit-btn" @click.stop="startRenameTrip(trip)" title="重命名">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </button>
+                  <button
+                    class="trip-delete-btn"
+                    v-if="trips.length > 1"
+                    @click.stop="deleteTrip(trip.id)"
+                    title="删除"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3 6 5 6 21 6"/>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                  </button>
+                  <button class="trip-enter-btn" @click="enterDetail(trip.id)">进入 →</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="status-count">
-          <span class="count-num">{{ tripData.points.length }}</span>
-          <span class="count-unit">个地点</span>
-        </div>
-        <AddPointDialog @add="onAddPoint" :map-ready="mapReady" class="add-in-status" />
       </div>
-      <div class="progress-section">
-        <div class="progress-bar">
-          <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+
+      <!-- ===== 详情页视图 ===== -->
+      <div v-if="viewMode === 'detail'" class="view-detail">
+        <div class="detail-back-bar">
+          <button class="back-btn" @click="exitDetail()">← 返回行程</button>
+          <span class="detail-trip-name">{{ currentDetailTrip?.name }}</span>
         </div>
-        <div class="progress-text">
-          <span>当前进度</span>
-          <span>{{ currentIndex + 1 }} / {{ tripData.points.length }}</span>
+
+        <div class="status-bar" v-if="currentPoint">
+          <div class="status-main">
+            <div class="status-icon">{{ markerIcons[currentPoint.type] || '📍' }}</div>
+            <div class="status-info">
+              <div class="status-name">{{ currentPoint.name }}</div>
+              <div class="status-desc">{{ currentPoint.description }}</div>
+            </div>
+          </div>
+          <div class="status-count">
+            <span class="count-num">{{ currentDetailTrip?.points.length }}</span>
+            <span class="count-unit">个地点</span>
+          </div>
+          <AddPointDialog @add="onAddPoint" :map-ready="mapReady" class="add-in-status" />
+        </div>
+
+        <div class="progress-section">
+          <div class="progress-bar">
+            <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+          </div>
+          <div class="progress-text">
+            <span>当前进度</span>
+            <span>{{ currentIndex + 1 }} / {{ currentDetailTrip?.points.length }}</span>
+          </div>
+        </div>
+
+        <div class="controls-row">
+          <div class="player-controls">
+            <button class="btn btn-secondary btn-sm" @click="resetTrip">重置</button>
+            <button class="btn btn-primary btn-sm" @click="togglePlay" :disabled="!mapReady">{{ isPlaying ? '暂停' : '播放' }}</button>
+            <button class="btn btn-secondary btn-sm" @click="nextStep">下一步</button>
+          </div>
+        </div>
+
+        <div class="speed-control">
+          <span class="speed-label">速度</span>
+          <div class="speed-slider-wrap">
+            <el-slider
+              v-model="speedIndex"
+              :marks="speedMarks"
+              step="mark"
+              :show-tooltip="false"
+              @change="currentSpeed = speeds[Math.round(speedIndex / (100 / (speeds.length - 1)))]"
+            />
+          </div>
+        </div>
+
+        <div class="stops-list">
+          <div class="stops-header">
+            <div class="stops-header-left">
+              <span class="stops-title">地点</span>
+              <span class="stops-count">{{ currentDetailTrip?.points.length }}</span>
+            </div>
+            <div class="stops-header-right">
+              <button v-if="!showBatchMode && !detailEmpty" class="batch-toggle-btn" @click="enterBatchMode">☰ 批量</button>
+              <button v-if="showBatchMode && selectedCount > 0" class="batch-toggle-btn" @click="toggleSelectAll">{{ allSelected ? '取消全选' : '全选' }}</button>
+              <button v-if="showBatchMode" class="batch-cancel-btn" @click="exitBatchMode">取消</button>
+              <button v-if="showBatchBar" class="batch-delete-btn" @click="batchDeletePoints">🗑 删除 ({{ selectedCount }})</button>
+            </div>
+          </div>
+
+          <div class="stops-timeline" v-if="!detailEmpty">
+            <div
+              v-for="(point, index) in currentDetailTrip?.points"
+              :key="point.id"
+              class="stop-row"
+              :draggable="true"
+              @dragstart="onDragStart(index, $event)"
+              @dragover.prevent="onDragOver(index)"
+              @drop="onDrop(index)"
+              @dragend="onDragEnd"
+              :class="{ 'drag-over': dragOverIndex === index, 'dragging': dragIndex === index }"
+            >
+              <div class="stop-timeline">
+                <div class="timeline-dot" :class="{ active: index === currentIndex, visited: index < currentIndex }"></div>
+                <div v-if="index < (currentDetailTrip?.points.length ?? 0) - 1" class="timeline-line" :class="{ visited: index < currentIndex }"></div>
+              </div>
+              <div class="stop-content" :class="{ visited: index < currentIndex, current: index === currentIndex }" @click="jumpTo(index)">
+                <div class="stop-main">
+                  <div class="stop-name-row">
+                    <input
+                      v-if="showBatchMode"
+                      type="checkbox"
+                      class="batch-checkbox stop-checkbox"
+                      :checked="selectedIndexes.has(index)"
+                      @click.stop
+                      @change="toggleSelect(index)"
+                    />
+                    <span class="stop-name">{{ point.name }}</span>
+                    <span class="stop-emoji">{{ markerIcons[point.type] || '📍' }}</span>
+                  </div>
+                  <div class="stop-meta">
+                    <span class="stop-type">{{ getTypeName(point.type) }}</span>
+                    <span v-if="point.description" class="stop-desc">{{ point.description }}</span>
+                  </div>
+                </div>
+                <div class="stop-actions">
+                  <button class="action-btn edit-btn" @click.stop="openEditDialog(index, point)" title="编辑">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                  <button class="action-btn delete-btn" @click.stop="deletePoint(index)" title="删除">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  </button>
+                </div>
+                <div v-if="index < (currentDetailTrip?.points.length ?? 0) - 1" class="travel-toggle" @click.stop="toggleSegmentTravelType(index)">
+                  <span class="travel-icon">{{ point.travelTypeToHere === 'drive' ? '🚗' : '✈️' }}</span>
+                  <span class="travel-text">{{ point.travelTypeToHere === 'drive' ? '驾车' : '飞机' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="detailEmpty" class="stops-empty">
+            <div class="empty-illustration">
+              <div class="empty-dot dot-1"></div>
+              <div class="empty-dot dot-2"></div>
+              <div class="empty-dot dot-3"></div>
+              <div class="empty-dash-line"></div>
+            </div>
+            <div class="empty-content">
+              <div class="empty-badge">地点列表</div>
+              <h3 class="empty-title">还没有添加地点</h3>
+              <p class="empty-hint">在地图上点击或搜索来添加你的旅行目的地</p>
+            </div>
+            <AddPointDialog @add="onAddPoint" :map-ready="mapReady" class="add-in-empty" />
+          </div>
         </div>
       </div>
-      <div class="controls-row">
-        <div class="player-controls">
-          <button class="btn btn-secondary btn-sm" @click="resetTrip">重置</button>
-          <button class="btn btn-primary btn-sm" @click="togglePlay" :disabled="!mapReady">{{ isPlaying ? '暂停' : '播放' }}</button>
-          <button class="btn btn-secondary btn-sm" @click="nextStep">下一步</button>
-        </div>
-      </div>
-      <div class="speed-control">
-        <span class="speed-label">速度</span>
-        <div class="speed-slider-wrap">
-          <el-slider
-            v-model="speedIndex"
-            :marks="speedMarks"
-            step="mark"
-            :show-tooltip="false"
-            @change="currentSpeed = speeds[Math.round(speedIndex / (100 / (speeds.length - 1)))]"
+
+      <!-- 重命名弹窗 -->
+      <div class="rename-overlay" v-if="renamingTrip" @click.self="cancelRename">
+        <div class="rename-dialog">
+          <div class="rename-header">重命名行程</div>
+          <input
+            v-model="renameInput"
+            class="rename-input"
+            @keydown.enter="confirmRename"
+            @keydown.esc="cancelRename"
+            ref="renameInputEl"
           />
-        </div>
-      </div>
-      <div class="stops-list">
-        <div class="stops-header">
-          <span class="stops-title">地点</span>
-          <span class="stops-count">{{ tripData.points.length }}</span>
-        </div>
-        <div class="stops-timeline">
-          <div
-            v-for="(point, index) in tripData.points"
-            :key="point.id"
-            class="stop-row"
-            :draggable="true"
-            @dragstart="onDragStart(index, $event)"
-            @dragover.prevent="onDragOver(index)"
-            @drop="onDrop(index)"
-            @dragend="onDragEnd"
-            :class="{ 'drag-over': dragOverIndex === index, 'dragging': dragIndex === index }"
-          >
-            <!-- 时间线 -->
-            <div class="stop-timeline">
-              <div class="timeline-dot" :class="{ active: index === currentIndex, visited: index < currentIndex }"></div>
-              <div v-if="index < tripData.points.length - 1" class="timeline-line" :class="{ visited: index < currentIndex }"></div>
-            </div>
-            <!-- 内容区 -->
-            <div class="stop-content" :class="{ visited: index < currentIndex, current: index === currentIndex }" @click="jumpTo(index)">
-              <div class="stop-main">
-                <div class="stop-name-row">
-                  <span class="stop-name">{{ point.name }}</span>
-                  <span class="stop-emoji">{{ markerIcons[point.type] || '📍' }}</span>
-                </div>
-                <div class="stop-meta">
-                  <span class="stop-type">{{ getTypeName(point.type) }}</span>
-                  <span v-if="point.description" class="stop-desc">{{ point.description }}</span>
-                </div>
-              </div>
-              <div class="stop-actions">
-                <button class="action-btn edit-btn" @click.stop="openEditDialog(index, point)" title="编辑">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                </button>
-                <button class="action-btn delete-btn" @click.stop="deletePoint(index)" title="删除">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                </button>
-              </div>
-              <!-- 出行方式切换 -->
-              <div v-if="index < tripData.points.length - 1" class="travel-toggle" @click.stop="toggleSegmentTravelType(index)">
-                <span class="travel-icon">{{ point.travelTypeToHere === 'drive' ? '🚗' : '✈️' }}</span>
-                <span class="travel-text">{{ point.travelTypeToHere === 'drive' ? '驾车' : '飞机' }}</span>
-              </div>
-            </div>
+          <div class="rename-actions">
+            <button class="btn btn-secondary" @click="cancelRename">取消</button>
+            <button class="btn btn-primary" @click="confirmRename">确认</button>
           </div>
         </div>
       </div>
+
     </div>
 
     <!-- 编辑点位弹窗 -->
@@ -190,11 +291,13 @@
         </div>
       </div>
     </div>
+
   </div>
 </template>
 
 <script setup>
 import {ref, computed, onMounted, onUnmounted, nextTick} from 'vue'
+import { ElMessage } from 'element-plus'
 import AMapLoader from '@amap/amap-jsapi-loader'
 import { markerIcons, sampleTrip } from '../data/sampleTrip.js'
 import AddPointDialog from '../components/AddPointDialog.vue'
@@ -278,10 +381,210 @@ function cancelAnim() {
 const mapReady = ref(false)
 
 // 行程数据
-const tripData = ref({
-  ...sampleTrip,
-  points: [...sampleTrip.points]
-})
+// 行程数据（多行程）
+const trips = ref([
+  {
+    id: Date.now(),
+    name: '我的旅程',
+    points: [...sampleTrip.points],
+    travelType: 'fly'
+  }
+])
+const activeTripId = ref(trips.value[0].id)
+
+// 当前行程（响应式）
+const currentTrip = computed(() => trips.value.find(t => t.id === activeTripId.value) || trips.value[0])
+const tripData = computed(() => currentTrip.value)
+
+// 新建行程
+function createTrip(name = '新行程') {
+  const trip = {
+    id: Date.now(),
+    name,
+    points: [],
+    travelType: defaultTravelType.value
+  }
+  trips.value.push(trip)
+  switchToTrip(trip.id)
+}
+
+// 切换行程（列表页切换卡片）
+function switchToTrip(id) {
+  pausePlay()
+  activeTripId.value = id
+  selectedIndexes.value = new Set()
+  showBatchMode.value = false
+  // 列表页不展示任何点位和轨迹线
+  clearMap()
+  currentIndex.value = 0
+}
+
+// 重命名行程
+const renamingTrip = ref(null)
+const renameInput = ref('')
+const renameInputEl = ref(null)
+
+// 卡片展开集合
+const expandedTripIds = ref(new Set())
+
+function toggleTripCard(id) {
+  const s = new Set(expandedTripIds.value)
+  if (s.has(id)) s.delete(id)
+  else s.add(id)
+  expandedTripIds.value = s
+}
+
+// 视图模式
+const viewMode = ref('list')
+const currentDetailTripId = ref(trips.value[0].id)
+const currentDetailTrip = computed(() => trips.value.find(t => t.id === currentDetailTripId.value) || null)
+const detailEmpty = computed(() => !currentDetailTrip.value?.points || currentDetailTrip.value.points.length === 0)
+
+function clearMap() {
+  allDotMarkers.forEach(dot => dot && dot.setMap(null))
+  allLabelMarkers.forEach(label => label && label.setMap(null))
+  allDotMarkers = []
+  allLabelMarkers = []
+  safeSetPath(mainPolyline, [])
+  safeSetPath(trailLine, [])
+  if (mainPolyline) mainPolyline.hide()
+  if (trailLine) trailLine.hide()
+}
+
+function enterDetail(tripId) {
+  clearMap()
+  currentDetailTripId.value = tripId
+  viewMode.value = 'detail'
+  // 进入详情页后，需要重新构建当前行程的地图标记
+  // 等 viewMode 渲染完成再初始化标记（确保容器可见）
+  nextTick(() => {
+    if (viewMode.value !== 'detail') return
+    initDetailMarkers()
+  })
+}
+
+function exitDetail() {
+  // 退出详情页时，清空当前卡片的播放状态
+  pausePlay()
+  currentIndex.value = 0
+  traveledPath = []
+  clearMap()
+  viewMode.value = 'list'
+}
+
+// 详情页标记初始化（进入详情时调用）
+function initDetailMarkers() {
+  // 不管有没有点位，都允许点击播放/重置按钮（空时弹窗提示）
+  mapReady.value = true
+  if (!currentDetailTrip.value?.points?.length) return
+  if (mainPolyline) mainPolyline.show()
+  if (trailLine) trailLine.show()
+  allDotMarkers = []
+  allLabelMarkers = []
+
+  // 重建 dot markers
+  currentDetailTrip.value.points.forEach((point) => {
+    const dot = new AMap.CircleMarker({
+      center: point.position,
+      radius: 6,
+      fillColor: '#667eea',
+      fillOpacity: 1,
+      strokeWidth: 0,
+      zIndex: 10
+    })
+    map.add(dot)
+    allDotMarkers.push(dot)
+  })
+
+  // 重建 label markers
+  currentDetailTrip.value.points.forEach((point, index) => {
+    const label = new AMap.Marker({
+      position: point.position,
+      offset: new AMap.Pixel(0, -35),
+      content: '<div class="label-tag">' + (markerIcons[point.type] || '📍') + ' ' + point.name + '</div>',
+      zIndex: 20
+    })
+    label.on('click', () => jumpTo(index))
+    label.hide()
+    map.add(label)
+    allLabelMarkers.push(label)
+  })
+
+  // 初始化显示
+  allDotMarkers.forEach((dot, i) => { if (dot && i > 0) dot.hide() })
+  safeSetPath(mainPolyline, [currentDetailTrip.value.points[0].position])
+  safeSetPath(trailLine, [currentDetailTrip.value.points[0].position])
+  triggerLabelAppear(allLabelMarkers[0])
+  mapReady.value = true
+}
+
+// 路线简介字符串：厦门市->昆明市->芒市
+function getRouteSummary(trip) {
+  if (!trip.points || trip.points.length === 0) return ''
+  return trip.points.map(p => p.name).join('->')
+}
+
+function startRenameTrip(trip) {
+  renamingTrip.value = trip
+  renameInput.value = trip.name
+  nextTick(() => renameInputEl.value?.focus())
+}
+
+function confirmRename() {
+  if (renamingTrip.value && renameInput.value.trim()) {
+    renamingTrip.value.name = renameInput.value.trim()
+  }
+  renamingTrip.value = null
+  renameInput.value = ''
+}
+
+function cancelRename() {
+  renamingTrip.value = null
+  renameInput.value = ''
+}
+
+// 删除行程（至少保留一个）
+function deleteTrip(id) {
+  if (trips.value.length <= 1) return
+  const idx = trips.value.findIndex(t => t.id === id)
+  if (idx < 0) return
+  trips.value.splice(idx, 1)
+  if (activeTripId.value === id) {
+    switchToTrip(trips.value[0].id)
+  }
+}
+
+// 初始化当前行程的地图标记
+function initTripMarkers() {
+  if (!map || !AMap) return
+  const pts = tripData.value.points
+  allDotMarkers = []
+  allLabelMarkers = []
+  pts.forEach((point) => {
+    const dot = new AMap.CircleMarker({
+      center: point.position,
+      radius: 6,
+      fillColor: '#667eea',
+      fillOpacity: 1,
+      strokeWidth: 0,
+      zIndex: 10
+    })
+    dot.setMap(map)
+    allDotMarkers.push(dot)
+  })
+  pts.forEach((point, index) => {
+    const label = new AMap.Marker({
+      position: point.position,
+      offset: new AMap.Pixel(0, -35),
+      content: '<div class="label-tag">' + (markerIcons[point.type] || '📍') + ' ' + point.name + '</div>',
+      zIndex: 20
+    })
+    label.on('click', () => jumpTo(index))
+    label.hide()
+    label.setMap(map)
+    allLabelMarkers.push(label)
+  })
+}
 const currentIndex = ref(0)
 const isPlaying = ref(false)
 const currentSpeed = ref(1)
@@ -300,6 +603,75 @@ let animTimer = null
 // 拖拽排序
 const dragIndex = ref(-1)
 const dragOverIndex = ref(-1)
+
+// 批量删除
+const selectedIndexes = ref(new Set())
+const showBatchMode = ref(false)
+const showBatchBar = computed(() => selectedIndexes.value.size > 0)
+const selectedCount = computed(() => selectedIndexes.value.size)
+const allSelected = computed(() =>
+  selectedIndexes.value.size > 0 &&
+  selectedIndexes.value.size === currentTrip.value.points.length
+)
+
+function enterBatchMode() {
+  showBatchMode.value = true
+}
+
+function exitBatchMode() {
+  showBatchMode.value = false
+  selectedIndexes.value = new Set()
+}
+
+function toggleSelect(index) {
+  const s = new Set(selectedIndexes.value)
+  if (s.has(index)) s.delete(index)
+  else s.add(index)
+  selectedIndexes.value = s
+}
+
+function toggleSelectAll() {
+  if (allSelected.value) {
+    selectedIndexes.value = new Set()
+  } else {
+    selectedIndexes.value = new Set(currentTrip.value.points.map((_, i) => i))
+  }
+}
+
+const isEmpty = computed(() => !tripData.value.points || tripData.value.points.length === 0)
+
+function batchDeletePoints() {
+  const count = selectedIndexes.value.size
+  if (!count) return
+  if (!confirm(`确定删除选中的 ${count} 个点位？`)) return
+  pausePlay()
+  const sorted = [...selectedIndexes.value].sort((a, b) => b - a)
+  const delSet = new Set(selectedIndexes.value)
+  sorted.forEach(idx => {
+    if (allLabelMarkers[idx]) {
+      allLabelMarkers[idx].off && allLabelMarkers[idx].off('click')
+      allLabelMarkers[idx].setMap(null)
+    }
+    allDotMarkers[idx] && allDotMarkers[idx].setMap(null)
+    currentTrip.value.points.splice(idx, 1)
+  })
+  allLabelMarkers = []
+  allDotMarkers = []
+  // 清空地图上的线和标记
+  mainPolyline && mainPolyline.setPath([])
+  trailLine && trailLine.setPath([])
+  movingMarker && movingMarker.setPosition([0, 0])
+  movingMarker && movingMarker.hide()
+  // 重置状态
+  currentIndex.value = 0
+  selectedIndexes.value = new Set()
+  showBatchMode.value = false
+  // 空态时显示提示
+  if (tripData.value.points.length === 0) {
+    allLabelMarkers = []
+    allDotMarkers = []
+  }
+}
 
 // 编辑弹窗
 const showEditDialog = ref(false)
@@ -416,22 +788,17 @@ onMounted(async () => {
     })
     console.log('label 标记初始化完成', allLabelMarkers)
 
-    movingMarker = new AMap.Marker({
-      position: tripData.value.points.length > 0 ? tripData.value.points[0].position : [98.5865, 24.4336],
-      content: FLY_SVG_CONTENT,
-      offset: new AMap.Pixel(-16, -16),
-      zIndex: 100
-    })
-    console.log('movingMarker 初始化完成', movingMarker)
-    map.add(movingMarker)
-
-    if (tripData.value.points.length > 0) {
-      // 初始化时只显示出发点 dot，其余隐藏
-      allDotMarkers.forEach((dot, i) => { if (dot && i > 0) dot.hide() })
-      mainPolyline && mainPolyline.setPath([tripData.value.points[0].position])
-      trailLine && trailLine.setPath([tripData.value.points[0].position])
-      console.log('last--step',allLabelMarkers[0])
-      triggerLabelAppear(allLabelMarkers[0])
+    if (!movingMarker) {
+      movingMarker = new AMap.Marker({
+        position: tripData.value.points.length > 0 ? tripData.value.points[0].position : [98.5865, 24.4336],
+        content: FLY_SVG_CONTENT,
+        offset: new AMap.Pixel(-16, -16),
+        zIndex: 100
+      })
+      map.add(movingMarker)
+    } else {
+      movingMarker.setPosition(tripData.value.points.length > 0 ? tripData.value.points[0].position : [98.5865, 24.4336])
+      movingMarker.setContent(FLY_SVG_CONTENT)
     }
 
     mapReady.value = true
@@ -476,8 +843,8 @@ function onDrop(index) {
   allDotMarkers.forEach((dot, i) => dot.setCenter(pts[i].position))
   allLabelMarkers.forEach((label, i) => label.setPosition(pts[i].position))
   const positions = pts.map(p => p.position)
-  mainPolyline && mainPolyline.setPath(positions)
-  trailLine && trailLine.setPath(positions)
+  safeSetPath(mainPolyline, positions)
+  safeSetPath(trailLine, positions)
   // 修正 currentIndex
   if (currentIndex.value === dragIndex.value) {
     currentIndex.value = index
@@ -532,7 +899,7 @@ function saveEdit() {
   allLabelMarkers[idx].setPosition(newPos)
   allLabelMarkers[idx].setContent('<div class="label-tag">' + (markerIcons[editForm.value.type] || '📍') + ' ' + editForm.value.name + '</div>')
   // 重建轨迹
-  mainPolyline && mainPolyline.setPath(pts.map(p => p.position))
+  safeSetPath(mainPolyline, pts.map(p => p.position))
   closeEditDialog()
 }
 
@@ -571,16 +938,29 @@ function togglePlay() {
 }
 
 function startPlay() {
-  if (tripData.value.points.length === 0) return
-  if (currentIndex.value >= tripData.value.points.length - 1) resetTrip()
+  if (!currentDetailTrip.value?.points?.length) { ElMessage.warning('请先添加点位'); return }
+  // 切换到当前详情卡片后，清掉上一次的播放状态
+  if (currentIndex.value >= currentDetailTrip.value.points.length) {
+    currentIndex.value = 0
+    traveledPath = []
+  }
+  if (currentIndex.value >= currentDetailTrip.value.points.length - 1) resetTrip()
   if (anim.pendingStart) { clearTimeout(anim.pendingStart); anim.pendingStart = null }
   cancelAnim()
   // cancelAnim 把 traveledPath 清空了，需要恢复「起点→当前索引」的已完成路径
-  traveledPath = tripData.value.points.slice(0, currentIndex.value + 1).map(p => p.position)
-  mainPolyline && mainPolyline.setPath(traveledPath)
+  // 单点不足以画 polyline，需至少两个点
+  if (currentIndex.value > 0) {
+    traveledPath = currentDetailTrip.value.points.slice(0, currentIndex.value + 1).map(p => p.position)
+    if (traveledPath.length < 2) traveledPath = []
+  } else {
+    traveledPath = []
+  }
+  if (traveledPath.length >= 2) {
+    safeSetPath(mainPolyline, traveledPath)
+  }
   isPlaying.value = true
   syncDots()
-  const curPos = tripData.value.points[currentIndex.value].position
+  const curPos = currentDetailTrip.value.points[currentIndex.value].position
   if (!isPosInView(map, curPos)) {
     map && map.panTo(curPos)
     anim.pendingStart = setTimeout(() => {
@@ -599,13 +979,14 @@ function pausePlay() {
 }
 
 function resetTrip() {
+  if (!currentDetailTrip.value?.points?.length) { ElMessage.warning('请先添加点位'); return }
   pausePlay()
   routeDirMap = {}
   currentIndex.value = 0
   traveledPath = []
-  const defaultCenter = tripData.value.points.length > 0 ? tripData.value.points[0].position : [98.5865, 24.4336]
-  mainPolyline && mainPolyline.setPath([defaultCenter])
-  trailLine && trailLine.setPath([defaultCenter])
+  const defaultCenter = currentDetailTrip.value.points[0].position
+  safeSetPath(mainPolyline, [])
+  safeSetPath(trailLine, [])
   movingMarker && movingMarker.setPosition(defaultCenter)
   allLabelMarkers.forEach((l, i) => i === 0 ? triggerLabelAppear(l) : l.hide())
   allDotMarkers.forEach(dot => dot && dot.show())
@@ -614,16 +995,17 @@ function resetTrip() {
 }
 
 function nextStep() {
+  if (!currentDetailTrip.value?.points?.length) { ElMessage.warning('请先添加点位'); return }
   pausePlay()
-  if (currentIndex.value < tripData.value.points.length - 1) {
-    const pts = tripData.value.points
+  if (currentIndex.value < currentDetailTrip.value.points.length - 1) {
+    const pts = currentDetailTrip.value.points
     const prevIdx = currentIndex.value
     const newIdx = prevIdx + 1
     currentIndex.value = newIdx
     // 累积已走路径
     const segPath = [pts[prevIdx].position, pts[newIdx].position]
     traveledPath = [...traveledPath, ...segPath]
-    mainPolyline && mainPolyline.setPath(traveledPath)
+    safeSetPath(mainPolyline, traveledPath)
     const pos = pts[newIdx].position
     movingMarker && movingMarker.setPosition(pos)
     map && map.panTo(pos)
@@ -634,13 +1016,22 @@ function nextStep() {
 }
 
 function jumpTo(index) {
-  if (tripData.value.points.length === 0) return
+  if (!currentDetailTrip.value?.points?.length) return
   pausePlay()
   allLabelMarkers.forEach((l, i) => i === index ? triggerLabelAppear(l) : l.hide())
   currentIndex.value = index
-  // traveledPath 重置为起点到目标点的完整路径
-  traveledPath = tripData.value.points.slice(0, index + 1).map(p => p.position)
-  mainPolyline && mainPolyline.setPath(traveledPath)
+  // traveledPath 重置为起点到目标点的完整路径（需至少2点才画polyline）
+  if (index > 0) {
+    traveledPath = tripData.value.points.slice(0, index + 1).map(p => p.position)
+    if (traveledPath.length >= 2) {
+      mainPolyline && mainPolyline.setPath(traveledPath)
+    } else {
+      mainPolyline && mainPolyline.setPath([])
+    }
+  } else {
+    traveledPath = []
+    mainPolyline && mainPolyline.setPath([])
+  }
   movingMarker && movingMarker.setPosition(tripData.value.points[index].position)
   map && map.panTo(tripData.value.points[index].position)
   if (allDotMarkers[index]) allDotMarkers[index].show()
@@ -703,11 +1094,12 @@ function jumpTo(index) {
  */
 function planAndAnimate() {
   if (!isPlaying.value || !map || !AMap) return
-  if (currentIndex.value >= tripData.value.points.length - 1) { pausePlay(); return }
+  if (currentIndex.value >= currentDetailTrip.value.points.length - 1) { pausePlay(); return }
 
-  const from = tripData.value.points[currentIndex.value].position
-  const to = tripData.value.points[currentIndex.value + 1].position
+  const from = currentDetailTrip.value.points[currentIndex.value].position
+  const to = currentDetailTrip.value.points[currentIndex.value + 1].position
   const prevIdx = currentIndex.value
+  if (!allLabelMarkers[prevIdx]) { console.warn('label marker not found', prevIdx); return }
   allLabelMarkers[prevIdx].hide()
   // label 在到达时才淡入（见 animLoop 到达处理）
 
@@ -735,7 +1127,7 @@ function planAndAnimate() {
       map.setCenter(from, false, 400)
       setTimeout(() => {
         if (!isPlaying.value) return
-        const segmentTravelType = tripData.value.points[currentIndex.value].travelTypeToHere || 'fly'
+        const segmentTravelType = currentDetailTrip.value.points[currentIndex.value].travelTypeToHere || 'fly'
         if (segmentTravelType === 'fly') {
           animateSegment(makeArcPath(from, to, currentIndex.value, 30, routeDirMap), 'fly')
         } else {
@@ -804,6 +1196,13 @@ function animateSegment(pathCoords, travelType) {
  *      - 隐藏 movingMarker
  *      - 累积 traveledPath，延迟 800ms 后开始下一段 planAndAnimate
  */
+function safeSetPath(polyline, path) {
+  if (!polyline) return
+  // AMap.Polyline.setPath 需至少2个坐标；单点时直接跳过
+  if (!path || !Array.isArray(path) || path.length < 2) return
+  polyline.setPath(path)
+}
+
 function animLoop(now, pathCoords) {
   if (!anim.active || !pathCoords || pathCoords.length < 1) return
   const elapsed = now - anim.startTime
@@ -811,7 +1210,8 @@ function animLoop(now, pathCoords) {
   const eased = 1 - (1 - rawT) * (1 - rawT)
   const pos = interpolatePathCoord(pathCoords, eased)
   if (!pos) { anim.rafId = requestAnimationFrame((t) => animLoop(t, pathCoords)); return }
-  trailLine && trailLine.setPath(buildTrailPath(pathCoords, eased))
+  const trailPath = buildTrailPath(pathCoords, eased)
+  if (trailPath && trailPath.length >= 2) trailLine && trailLine.setPath(trailPath)
   movingMarker && movingMarker.setPosition(pos)
   maybePan(pos)
   if (rawT >= 1) {
@@ -822,7 +1222,7 @@ function animLoop(now, pathCoords) {
     // cancelAnim 在播放中调用不会清 traveledPath（上面已加 return），此处安全
     anim.active = true  // cancelAnim 后恢复 active，syncDots 依赖它判断出发 dot
     anim.departureIdx = arrivedIdx  // 下一段出发 dot 为当前到达 dot
-    trailLine && trailLine.setPath(pathCoords)
+    safeSetPath(trailLine, pathCoords)
     // 触发到达动画 + 显示到达 dot/label + 隐藏 movingMarker
     if (isPlaying.value) {
       triggerArrivalRing(anim.to)
@@ -832,9 +1232,9 @@ function animLoop(now, pathCoords) {
     movingMarker && movingMarker.setContent(INVISIBLE_MARKER_ICON)
     animTimer = setTimeout(() => {
       if (!isPlaying.value) return
-      // 累积路径：用 traveledPath 追加新段，避免重复追加上段全量路径
+      // 累积路径：用 traveledPath 追加新段
       traveledPath = [...traveledPath, ...pathCoords]
-      mainPolyline && mainPolyline.setPath(traveledPath)
+      safeSetPath(mainPolyline, traveledPath)
       currentIndex.value = arrivedIdx
       syncDots()
       animTimer = setTimeout(() => { if (isPlaying.value) planAndAnimate() }, 800)
@@ -982,7 +1382,7 @@ function onAddPoint(point) {
     description: point.description || '',
     travelTypeToHere: defaultTravelType.value
   }
-  tripData.value.points.push(newPoint)
+  currentTrip.value.points.push(newPoint)
   if (map && AMap && movingMarker) {
     const dot = new AMap.CircleMarker({
       center: newPoint.position,
@@ -1024,7 +1424,7 @@ function deletePoint(index) {
   }
   allDotMarkers[index] && allDotMarkers[index].setMap(null)
   allDotMarkers.splice(index, 1)
-  tripData.value.points.splice(index, 1)
+  currentTrip.value.points.splice(index, 1)
   mainPolyline && mainPolyline.setPath(tripData.value.points.map(p => p.position))
   if (currentIndex.value >= tripData.value.points.length) currentIndex.value = tripData.value.points.length - 1
 }
@@ -1231,7 +1631,6 @@ onUnmounted(() => {
   padding: 20px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.02);
   border: 1px solid rgba(0,0,0,0.04);
-  overflow-y: auto;
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
@@ -1321,6 +1720,11 @@ onUnmounted(() => {
   padding: 0 4px;
   margin-bottom: 12px;
 }
+.stops-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .stops-title {
   font-size: 10px;
   font-weight: 600;
@@ -1335,6 +1739,79 @@ onUnmounted(() => {
   background: #f1f5f9;
   padding: 2px 8px;
   border-radius: 20px;
+}
+.batch-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #6366f1;
+  flex-shrink: 0;
+}
+.batch-toggle-btn {
+  padding: 5px 12px;
+  background: rgba(99,102,241,0.08);
+  color: #6366f1;
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.batch-toggle-btn:hover {
+  background: rgba(99,102,241,0.15);
+  border-color: rgba(99,102,241,0.35);
+}
+.batch-cancel-btn {
+  padding: 5px 12px;
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.batch-cancel-btn:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+.stops-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.batch-delete-btn {
+  padding: 5px 12px;
+  background: rgba(239,68,68,0.08);
+  color: #ef4444;
+  border: 1px solid rgba(239,68,68,0.2);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.batch-delete-btn:hover {
+  background: rgba(239,68,68,0.15);
+  border-color: rgba(239,68,68,0.35);
+}
+.stop-checkbox {
+  margin-right: 6px;
+  vertical-align: middle;
+  cursor: pointer;
+  width: 15px;
+  height: 15px;
+  accent-color: #6366f1;
+  flex-shrink: 0;
+}
+.stop-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .stops-timeline {
@@ -1517,7 +1994,118 @@ onUnmounted(() => {
 .travel-icon { font-size: 12px; }
 .travel-text { font-size: 11px; font-weight: 500; }
 
-/* ===== 编辑弹窗 ===== */
+/* ===== 空态 ===== */
+.stops-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  min-height: 260px;
+}
+
+.empty-illustration {
+  position: relative;
+  width: 120px;
+  height: 60px;
+  margin-bottom: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-dot {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.15);
+  border: 2px solid rgba(99, 102, 241, 0.25);
+}
+
+.dot-1 {
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  animation: float-dot 3s ease-in-out infinite;
+}
+
+.dot-2 {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  animation: float-dot 3s ease-in-out infinite 0.4s;
+}
+
+.dot-3 {
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  animation: float-dot 3s ease-in-out infinite 0.8s;
+}
+
+@keyframes float-dot {
+  0%, 100% { transform: translateY(-50%); opacity: 0.4; }
+  50% { transform: translateY(-60%); opacity: 0.7; }
+}
+
+.dot-2 {
+  animation-name: float-dot-center;
+}
+@keyframes float-dot-center {
+  0%, 100% { transform: translate(-50%, -50%); opacity: 0.4; }
+  50% { transform: translate(-50%, -60%); opacity: 0.7; }
+}
+
+.empty-dash-line {
+  position: absolute;
+  top: 50%;
+  left: 32px;
+  right: 32px;
+  height: 0;
+  border-top: 2px dashed rgba(99, 102, 241, 0.2);
+  transform: translateY(-50%);
+}
+
+.empty-content {
+  text-align: center;
+  margin-bottom: 44px;
+}
+
+.empty-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6366f1;
+  background: rgba(99, 102, 241, 0.08);
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+.empty-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 8px 0;
+}
+
+.empty-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.5;
+  max-width: 200px;
+}
+
+.add-in-empty :deep(.add-point-btn) {
+  padding: 10px 20px;
+  font-size: 13px;
+}
+
 .dialog-overlay {
   position: fixed; top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(15,23,42,0.4); backdrop-filter: blur(6px); display: flex; align-items: center;
@@ -1643,6 +2231,351 @@ onUnmounted(() => {
     height: 38px;
     font-size: 14px;
   }
-  .map-container.is-fullscreen #amap-container { height: 100vh !important; min-height: 0 !important; }
 }
+
+/* ===== 行程卡片列表（桌面端） ===== */
+.trips-section {
+  padding: 0;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.trips-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-top: 16px;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 1;
+}
+
+.trips-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #94a3b8;
+}
+
+.trips-count {
+  font-size: 10px;
+  font-weight: 600;
+  color: #cbd5e1;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.trip-add-btn {
+  margin-left: auto;
+  padding: 4px 10px;
+  background: rgba(99,102,241,0.08);
+  color: #6366f1;
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.trip-add-btn:hover {
+  background: rgba(99,102,241,0.15);
+  border-color: rgba(99,102,241,0.35);
+}
+
+.trips-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0;
+}
+
+.trip-card {
+  background: #f8fafc;
+  border: 1.5px solid transparent;
+  border-radius: 10px;
+  overflow: hidden;
+  transition: all 0.2s;
+  min-height: 72px;
+}
+
+.trip-card.active {
+  background: rgba(99,102,241,0.06);
+  border-color: rgba(99,102,241,0.25);
+}
+
+.trip-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 12px 8px;
+  user-select: none;
+}
+
+.trip-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.trip-card-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trip-card-meta {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.trip-edit-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(0,0,0,0.04);
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: 8px;
+  transition: all 0.15s;
+}
+.trip-edit-btn:hover {
+  background: rgba(99,102,241,0.1);
+  color: #6366f1;
+}
+
+.trip-card-summary {
+  padding: 2px 12px 6px;
+  max-height: 60px;
+  overflow: hidden;
+}
+
+.summary-text {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.5;
+  word-break: break-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.summary-empty {
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.trip-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 12px;
+  border-top: 1px solid rgba(0,0,0,0.04);
+  gap: 8px;
+}
+
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.trip-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(0,0,0,0.04);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.trip-delete-btn:hover {
+  background: rgba(239,68,68,0.1);
+  color: #ef4444;
+}
+
+.trip-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px 12px;
+  border-top: 1px solid rgba(0,0,0,0.04);
+  gap: 8px;
+}
+
+.trip-expand-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(0,0,0,0.04);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.trip-expand-btn:hover {
+  background: rgba(99,102,241,0.1);
+  color: #6366f1;
+}
+.trip-expand-btn.expanded {
+  color: #6366f1;
+  background: rgba(99,102,241,0.1);
+}
+.trip-expand-btn svg {
+  transition: transform 0.2s ease;
+}
+.trip-expand-btn.expanded svg {
+  transform: rotate(180deg);
+}
+
+.trip-enter-btn {
+  padding: 5px 14px;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+  white-space: nowrap;
+}
+.trip-enter-btn:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.view-detail {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.detail-back-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 6px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+.back-btn {
+  background: none;
+  border: none;
+  color: #6366f1;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+  font-weight: 500;
+}
+.back-btn:hover { text-decoration: underline; }
+.detail-trip-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+/* ===== 重命名弹窗 ===== */
+.rename-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15,23,42,0.4);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+.rename-dialog {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+  animation: dialog-in 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.rename-header {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 16px;
+}
+.rename-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+  color: #1e293b;
+  margin-bottom: 16px;
+  transition: border-color 0.15s;
+}
+.rename-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.08);
+}
+.rename-actions {
+  display: flex;
+  gap: 10px;
+}
+.rename-actions .btn {
+  flex: 1;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.rename-actions .btn-secondary {
+  background: #f1f5f9;
+  color: #64748b;
+}
+.rename-actions .btn-secondary:hover {
+  background: #e2e8f0;
+}
+.rename-actions .btn-primary {
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: white;
+}
+
+@media (max-width: 768px) {
+  .trips-section { padding: 12px 16px 10px; }
+  .trips-list { max-height: 180px; }
+  .rename-dialog { width: calc(100vw - 48px); max-width: none; }
+}
+
 </style>
