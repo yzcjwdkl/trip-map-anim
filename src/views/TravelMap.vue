@@ -93,8 +93,8 @@
       <!-- ===== 详情页视图 ===== -->
       <div v-if="viewMode === 'detail'" class="view-detail">
         <div class="detail-back-bar">
-          <button class="back-btn" @click="exitDetail()">← 返回行程</button>
           <span class="detail-trip-name">{{ currentDetailTrip?.name }}</span>
+          <button class="back-btn" @click="exitDetail()">返回</button>
         </div>
 
         <div class="status-bar" v-if="currentPoint">
@@ -984,13 +984,17 @@ function resetTrip() {
   routeDirMap = {}
   currentIndex.value = 0
   traveledPath = []
-  const defaultCenter = currentDetailTrip.value.points[0].position
+  // 清空地图上的路程线段
   safeSetPath(mainPolyline, [])
   safeSetPath(trailLine, [])
-  movingMarker && movingMarker.setPosition(defaultCenter)
+  // 只展示第一个点位的信息
+  movingMarker && movingMarker.setPosition(currentDetailTrip.value.points[0].position)
+  // 隐藏除第一个外的所有 label，只显示第一个
   allLabelMarkers.forEach((l, i) => i === 0 ? triggerLabelAppear(l) : l.hide())
-  allDotMarkers.forEach(dot => dot && dot.show())
-  map && map.setCenter(defaultCenter)
+  // 重置 dot 显示状态，只保留第一个
+  allDotMarkers.forEach((dot, i) => dot && (i === 0 ? dot.show() : dot.hide()))
+  // 将地图中心设为第一个点位
+  map && map.setCenter(currentDetailTrip.value.points[0].position)
   map && map.setZoom(14)
 }
 
@@ -1002,13 +1006,11 @@ function nextStep() {
     const prevIdx = currentIndex.value
     const newIdx = prevIdx + 1
     currentIndex.value = newIdx
-    // 累积已走路径
-    const segPath = [pts[prevIdx].position, pts[newIdx].position]
-    traveledPath = [...traveledPath, ...segPath]
-    safeSetPath(mainPolyline, traveledPath)
+    // 只移动地图到目标点位，不画路程线段
     const pos = pts[newIdx].position
     movingMarker && movingMarker.setPosition(pos)
     map && map.panTo(pos)
+    // 显示目标点位的 label
     triggerLabelAppear(allLabelMarkers[newIdx])
     if (allDotMarkers[newIdx]) allDotMarkers[newIdx].show()
   }
@@ -1020,18 +1022,7 @@ function jumpTo(index) {
   pausePlay()
   allLabelMarkers.forEach((l, i) => i === index ? triggerLabelAppear(l) : l.hide())
   currentIndex.value = index
-  // traveledPath 重置为起点到目标点的完整路径（需至少2点才画polyline）
-  if (index > 0) {
-    traveledPath = tripData.value.points.slice(0, index + 1).map(p => p.position)
-    if (traveledPath.length >= 2) {
-      mainPolyline && mainPolyline.setPath(traveledPath)
-    } else {
-      mainPolyline && mainPolyline.setPath([])
-    }
-  } else {
-    traveledPath = []
-    mainPolyline && mainPolyline.setPath([])
-  }
+  // 不画路程线段，只展示点位信息
   movingMarker && movingMarker.setPosition(tripData.value.points[index].position)
   map && map.panTo(tripData.value.points[index].position)
   if (allDotMarkers[index]) allDotMarkers[index].show()
@@ -2484,6 +2475,7 @@ onUnmounted(() => {
 .detail-back-bar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   padding: 10px 12px 6px;
   border-bottom: 1px solid rgba(0,0,0,0.06);
