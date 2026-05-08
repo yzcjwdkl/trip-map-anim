@@ -1,9 +1,9 @@
 <template>
-  <div class="trip-detail" :class="{ 'is-fullscreen': props.fullscreen }">
-    <div class="map-container" :class="{ 'is-fullscreen': props.fullscreen }">
+  <div class="trip-detail" :class="{ 'is-fullscreen': fullscreen }">
+    <div class="map-container" :class="{ 'is-fullscreen': fullscreen }">
       <el-button class="fullscreen-btn" link @click="emit('toggle-fullscreen')" title="全屏">⛶</el-button>
       <div id="amap-container" ref="mapContainer"></div>
-      <svg class="ring-overlay" ref="ringOverlay" style="display:none">
+      <svg class="ring-overlay" ref="ringOverlayRef" style="display:none">
         <defs>
           <mask :id="'rm-' + uid">
             <rect width="100%" height="100%" fill="white"/>
@@ -25,7 +25,7 @@
       </div>
     </div>
 
-    <div class="control-panel" v-show="!props.fullscreen">
+    <div class="control-panel" v-show="!fullscreen">
       <div class="detail-back-bar">
         <span class="detail-trip-name">{{ trip.name }}</span>
         <el-button link @click="emit('back')">← 返回</el-button>
@@ -72,7 +72,7 @@
             :marks="speedMarks"
             step="mark"
             :show-tooltip="false"
-            @change="currentSpeed = speeds[Math.round(speedIndex / (100 / (speeds.length - 1)))]"
+            @change="handleSpeedChange"
           />
         </div>
       </div>
@@ -244,6 +244,8 @@ let allDotMarkers = []
 let allLabelMarkers = []
 let routeDirMap = {}
 let arrivalRingAnimId = null
+let mapResizeObserver = null
+const ringOverlayRef = ref(null)
 const uid = Date.now()
 const ringState = ref({
   active: false,
@@ -272,8 +274,7 @@ function cancelAnim() {
   if (anim.pendingStart) { clearTimeout(anim.pendingStart); anim.pendingStart = null }
   ringState.value.active = false
   if (arrivalRingAnimId) { cancelAnimationFrame(arrivalRingAnimId); arrivalRingAnimId = null }
-  const svgEl = document.querySelector('.ring-overlay')
-  if (svgEl) svgEl.style.display = 'none'
+  if (ringOverlayRef.value) ringOverlayRef.value.style.display = 'none'
   if (!isPlaying.value) { traveledPath = []; return }
 }
 
@@ -529,8 +530,7 @@ function triggerArrivalRing(pos) {
   if (ringState.value.active) {
     if (arrivalRingAnimId) cancelAnimationFrame(arrivalRingAnimId)
     ringState.value.active = false
-    const prev = document.querySelector('.ring-overlay')
-    if (prev) prev.style.display = 'none'
+    if (ringOverlayRef.value) ringOverlayRef.value.style.display = 'none'
   }
   if (!pos || !Array.isArray(pos) || pos.length < 2 || isNaN(pos[0]) || isNaN(pos[1])) {
     console.warn('triggerArrivalRing: 无效坐标', pos)
@@ -539,7 +539,7 @@ function triggerArrivalRing(pos) {
   const mapPos = new AMap.LngLat(pos[0], pos[1])
   const pixel = map.lngLatToContainer(mapPos)
   if (isNaN(pixel.x) || isNaN(pixel.y)) return
-  const svgEl = document.querySelector('.ring-overlay')
+  const svgEl = ringOverlayRef.value
   if (!svgEl) return
   svgEl.style.display = 'block'
   ringState.value.active = true
@@ -559,7 +559,7 @@ function animRing(now) {
   const MAX_OUTER = 32
   const easeOut = t => 1 - Math.pow(1 - t, 3)
   if (!ringState.value.active) {
-    document.querySelector('.ring-overlay') && (document.querySelector('.ring-overlay').style.display = 'none')
+    if (ringOverlayRef.value) ringOverlayRef.value.style.display = 'none'
     arrivalRingAnimId = null
     return
   }
@@ -569,8 +569,7 @@ function animRing(now) {
   ringState.value.opacity = Math.max(0, 0.65 * (1 - easeOut(rawT)))
   if (rawT >= 1) {
     ringState.value.active = false
-    const svgEl = document.querySelector('.ring-overlay')
-    if (svgEl) svgEl.style.display = 'none'
+    if (ringOverlayRef.value) ringOverlayRef.value.style.display = 'none'
     arrivalRingAnimId = null
   } else {
     arrivalRingAnimId = requestAnimationFrame(animRing)
@@ -604,10 +603,7 @@ function onAddPoint(point) {
   allDotMarkers.push(dot)
   const label = createLabelMarker(AMap, newPoint, {
     hidden: true,
-    onClick: () => {
-      const idx = trip.value.points.findIndex(p => p.id === newPoint.id)
-      if (idx >= 0) jumpTo(idx)
-    }
+    onClick: () => jumpTo(newIdx)
   })
   label.setMap(map)
   allLabelMarkers.push(label)
@@ -722,7 +718,6 @@ function batchDeletePoints() {
   }
   mainPolyline && mainPolyline.setPath(trip.value.points.map(p => p.position))
   trailLine && trailLine.setPath([])
-  movingMarker && movingMarker.setPosition([0, 0])
   movingMarker && movingMarker.hide()
   currentIndex.value = 0
   selectedIndexes.value = new Set()
@@ -748,6 +743,10 @@ function openEditDialog(index, point) {
     travelTypeToHere: point.travelTypeToHere || 'fly'
   }
   showEditDialog.value = true
+}
+function handleSpeedChange() {
+  const idx = Math.round(speedIndex.value / (100 / (speeds.length - 1)))
+  currentSpeed.value = speeds[idx]
 }
 function closeEditDialog() { showEditDialog.value = false }
 function saveEdit() {
@@ -835,8 +834,8 @@ onMounted(async () => {
 
     mapReady.value = true
 
-    const ro = new ResizeObserver(() => { if (map) map.resize() })
-    ro.observe(document.getElementById('amap-container'))
+    mapResizeObserver = new ResizeObserver(() => { if (map) map.resize() })
+    mapResizeObserver.observe(document.getElementById('amap-container'))
   } catch (e) {
     console.error('地图加载失败:', e)
   }
@@ -850,6 +849,7 @@ onUnmounted(() => {
     map.off && map.off()
     map.destroy()
   }
+  if (mapResizeObserver) { mapResizeObserver.disconnect(); mapResizeObserver = null }
   ringState.value.active = false
   if (arrivalRingAnimId) { cancelAnimationFrame(arrivalRingAnimId); arrivalRingAnimId = null }
 })

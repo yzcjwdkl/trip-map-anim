@@ -1,94 +1,96 @@
 <template>
   <!-- 添加点位按钮 -->
-  <button class="add-point-btn" @click="openDialog" :disabled="!props.mapReady">
+  <el-button class="add-point-btn" type="primary" plain @click="openDialog" :disabled="!mapReady">
     添加点位
-  </button>
+  </el-button>
 
   <!-- 弹窗 -->
-  <div class="dialog-overlay" v-if="showDialog" @click.self="closeDialog">
-    <div class="dialog">
-      <div class="dialog-header">
-        <h3>添加旅行点位</h3>
-        <button class="close-btn" @click="closeDialog">✕</button>
-      </div>
+  <el-dialog
+    v-model="showDialog"
+    title="添加旅行点位"
+    width="480px"
+    :close-on-click-modal="true"
+    destroy-on-close
+  >
+    <div class="dialog-body">
+      <!-- 地点搜索 -->
+      <el-input
+        ref="searchInputRef"
+        v-model="keyword"
+        placeholder="输入地名搜索（如：芒市广场）"
+        clearable
+        @input="onSearchInput"
+        @keyup.enter="onSearchInput"
+      >
+        <template #append>
+          <el-button @click="onSearchInput">搜索</el-button>
+        </template>
+      </el-input>
 
-      <div class="dialog-body">
-        <!-- 地点搜索 -->
-        <div class="search-box">
-          <input
-            ref="searchInput"
-            v-model="keyword"
-            type="text"
-            placeholder="输入地名搜索（如：芒市广场）"
-            @input="onSearchInput"
-            @keydown.enter="onSearchInput"
-          />
-          <button class="search-btn" @click="onSearchInput">搜索</button>
-        </div>
-
-        <!-- 搜索结果列表 -->
-        <div class="results-list" v-if="searchResults.length > 0">
-          <div
-            v-for="(item, index) in searchResults"
-            :key="index"
-            :class="['result-item', { selected: selectedIndex === index }]"
-            @click="selectResult(item, index)"
-          >
-            <div class="result-name">{{ item.name }}</div>
-            <div class="result-address">{{ item.address || item.district || '' }}</div>
-          </div>
-        </div>
-
-        <div class="empty-hint" v-else-if="keyword && !searching && !searched">
-          输入关键词搜索地点
-        </div>
-        <div class="empty-hint" v-else-if="searching">
-          搜索中...
-        </div>
-        <div class="empty-hint" v-else-if="searched && searchResults.length === 0">
-          未找到相关地点
-        </div>
-
-        <!-- 预览地图 -->
-        <div class="preview-map" v-if="selectedPOI">
-          <div id="preview-amap" class="preview-amap"></div>
-        </div>
-
-        <!-- 点位信息表单 -->
-        <div class="point-form" v-if="selectedPOI">
-          <div class="form-row">
-            <label>名称</label>
-            <input v-model="pointName" type="text" />
-          </div>
-          <div class="form-row">
-            <label>类型</label>
-            <select v-model="pointType">
-              <option value="food">🍜 美食</option>
-              <option value="attraction">🏛️ 景点</option>
-              <option value="activity">🎉 活动</option>
-              <option value="hotel">🏨 住宿</option>
-              <option value="transport">🚗 交通</option>
-            </select>
-          </div>
-          <div class="form-row">
-            <label>描述</label>
-            <input v-model="pointDesc" type="text" placeholder="简短描述（可选）" />
-          </div>
-          <div class="form-row coords-row">
-            <label>坐标</label>
-            <span class="coords">{{ selectedPOI.location.lng.toFixed(6) }}, {{ selectedPOI.location.lat.toFixed(6) }}</span>
-          </div>
+      <!-- 搜索结果列表 -->
+      <div class="results-list" v-if="searchResults.length > 0">
+        <div
+          v-for="(item, index) in searchResults"
+          :key="index"
+          :class="['result-item', { selected: selectedIndex === index }]"
+          @click="selectResult(item, index)"
+        >
+          <div class="result-name">{{ item.name }}</div>
+          <div class="result-address">{{ item.address || item.district || '' }}</div>
         </div>
       </div>
 
-      <div class="dialog-footer">
-        <button class="btn btn-secondary" @click="closeDialog">取消</button>
-        <button class="btn btn-primary" :disabled="!selectedPOI" @click="confirmAdd">
-          ✓ 确认添加
-        </button>
+      <el-empty
+        v-else-if="keyword && !searching && !searched"
+        description="输入关键词搜索地点"
+        :image-size="60"
+      />
+      <div v-else-if="searching" class="searching-tip">搜索中...</div>
+      <el-empty
+        v-else-if="searched && searchResults.length === 0"
+        description="未找到相关地点"
+        :image-size="60"
+      />
+
+      <!-- 预览地图 -->
+      <div class="preview-map" v-if="selectedPOI">
+        <div id="preview-amap" class="preview-amap"></div>
+      </div>
+
+      <!-- 点位信息表单 -->
+      <div class="point-form" v-if="selectedPOI">
+        <div class="form-row">
+          <label>名称</label>
+          <el-input v-model="pointName" />
+        </div>
+        <div class="form-row">
+          <label>类型</label>
+          <el-select v-model="pointType" style="width: 100%">
+            <el-option value="food" label="🍜 美食" />
+            <el-option value="attraction" label="🏛️ 景点" />
+            <el-option value="activity" label="🎉 活动" />
+            <el-option value="hotel" label="🏨 住宿" />
+            <el-option value="transport" label="🚗 交通" />
+          </el-select>
+        </div>
+        <div class="form-row">
+          <label>描述</label>
+          <el-input v-model="pointDesc" placeholder="简短描述（可选）" />
+        </div>
+        <div class="form-row coords-row">
+          <label>坐标</label>
+          <span class="coords">{{ selectedPOI.location.lng.toFixed(6) }}, {{ selectedPOI.location.lat.toFixed(6) }}</span>
+        </div>
       </div>
     </div>
-  </div>
+
+    <template #footer>
+      <el-button @click="closeDialog">取消</el-button>
+      <el-button type="primary" :disabled="!selectedPOI" @click="confirmAdd">
+        确认添加
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
@@ -108,6 +110,7 @@ const selectedPOI = ref(null)
 const pointName = ref('')
 const pointType = ref('attraction')
 const pointDesc = ref('')
+const searchInputRef = ref(null)
 
 let AMap = null
 let placeSearch = null
@@ -124,17 +127,17 @@ async function initAMap() {
     }
     AMap = await AMapLoader.load({
       key: import.meta.env.VITE_AMAP_KEY,
-    version: '2.0',
-    plugin: ['AMap.PlaceSearch']
-  })
-  // 确保插件已加载
-  await new Promise(resolve => {
-    if (AMap.PlaceSearch) {
-      resolve()
-    } else {
-      AMap.plugin('AMap.PlaceSearch', resolve)
-    }
-  })
+      version: '2.0',
+      plugin: ['AMap.PlaceSearch']
+    })
+    // 确保插件已加载
+    await new Promise(resolve => {
+      if (AMap.PlaceSearch) {
+        resolve()
+      } else {
+        AMap.plugin('AMap.PlaceSearch', resolve)
+      }
+    })
     placeSearch = new AMap.PlaceSearch({
       city: '全国',
       citylimit: false,
@@ -159,7 +162,7 @@ async function openDialog() {
   searched.value = false
   await nextTick()
   await initAMap()
-  document.querySelector('.search-box input').focus()
+  searchInputRef.value?.focus?.()
 }
 
 function closeDialog() {
@@ -245,53 +248,16 @@ function confirmAdd() {
   cursor: not-allowed;
 }
 
-.dialog-overlay {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(15,23,42,0.4); backdrop-filter: blur(6px); display: flex; align-items: center;
-  justify-content: center; z-index: 1000; padding: 24px;
-}
-.dialog {
-  background: white; border-radius: 20px; width: 100%; max-width: 480px;
-  max-height: 90vh; display: flex; flex-direction: column;
-  box-shadow: 0 25px 50px rgba(0,0,0,0.12), 0 10px 20px rgba(0,0,0,0.08);
-}
-.dialog-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 20px 24px; border-bottom: 1px solid #f8fafc;
-}
-.dialog-header h3 { margin: 0; font-size: 15px; color: #1e293b; font-weight: 600; }
-.close-btn { background: none; border: none; font-size: 16px; cursor: pointer; color: #94a3b8; padding: 6px; border-radius: 6px; transition: all 0.15s ease; }
-.close-btn:hover { background: #f1f5f9; color: #1e293b; }
-.dialog-body { padding: 24px; flex: 1; overflow-y: auto; }
-
-.search-box { display: flex; gap: 8px; margin-bottom: 12px; }
-.search-box input {
-  flex: 1;
-  padding: 10px 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-  outline: none;
-  background: #fafbfc;
-  color: #1e293b;
-  transition: border-color 0.15s ease;
-}
-.search-box input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.08); background: white; }
-.search-box input::placeholder { color: #cbd5e1; }
-.search-btn {
-  padding: 10px 18px;
-  background: linear-gradient(135deg, #6366f1, #4f46e5);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(99,102,241,0.25);
+.dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.results-list { max-height: 200px; overflow-y: auto; margin-bottom: 12px; }
+.results-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
 .result-item {
   padding: 10px 12px;
   border-radius: 8px;
@@ -299,39 +265,49 @@ function confirmAdd() {
   margin-bottom: 4px;
   transition: background 0.15s;
 }
-.result-item:hover, .result-item.selected { background: rgba(99,102,241,0.06); }
+.result-item:hover, .result-item.selected {
+  background: rgba(99,102,241,0.06);
+}
 .result-name { font-size: 13px; font-weight: 500; color: #1e293b; }
 .result-address { font-size: 11px; color: #94a3b8; margin-top: 2px; }
 
-.empty-hint { text-align: center; padding: 20px; color: #94a3b8; font-size: 13px; }
+.searching-tip {
+  text-align: center;
+  padding: 20px;
+  color: #94a3b8;
+  font-size: 13px;
+}
 
-.preview-map { margin: 12px 0; border-radius: 10px; overflow: hidden; }
-.preview-amap { width: 100%; height: 160px; }
+.preview-map {
+  border-radius: 10px;
+  overflow: hidden;
+}
+.preview-amap {
+  width: 100%;
+  height: 160px;
+}
 
-.point-form { display: flex; flex-direction: column; gap: 14px; }
-.form-row { display: flex; flex-direction: column; gap: 6px; }
-.form-row label { font-size: 12px; color: #64748b; font-weight: 500; }
-.form-row input, .form-row select {
-  flex: 1;
-  padding: 10px 14px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-  outline: none;
+.point-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.form-row label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+.coords {
+  font-size: 12px;
+  color: #94a3b8;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  padding: 8px 12px;
   background: #fafbfc;
-  color: #1e293b;
-  transition: all 0.15s ease;
+  border-radius: 6px;
 }
-.form-row input:focus, .form-row select:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.08); background: white; }
-.form-row input::placeholder { color: #cbd5e1; }
-.coords { font-size: 12px; color: #94a3b8; font-family: ui-monospace, 'SF Mono', Menlo, monospace; padding: 8px 12px; background: #fafbfc; border-radius: 6px; }
-
-.dialog-footer {
-  display: flex; gap: 10px; padding: 20px 24px; border-top: 1px solid #f8fafc;
-}
-.dialog-footer .btn { flex: 1; padding: 11px; border-radius: 10px; font-size: 13px; border: none; cursor: pointer; font-weight: 500; }
-.dialog-footer .btn-secondary { background: #f1f5f9; color: #64748b; }
-.dialog-footer .btn-secondary:hover { background: #e2e8f0; color: #1e293b; }
-.dialog-footer .btn-primary { background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; }
-.dialog-footer .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
