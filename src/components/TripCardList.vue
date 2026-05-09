@@ -5,567 +5,478 @@
         <h2 class="header-title">行程</h2>
         <span class="header-count">{{ trips.length }}</span>
       </div>
-      <el-button type="primary" size="small" class="new-btn" @click="createTrip()">
-        + 新建
-      </el-button>
+      <button class="new-btn" @click="handleCreateTrip">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        新建行程
+      </button>
     </div>
 
-    <div class="trips-scroll" ref="scrollRef">
-      <div class="trips-grid" ref="gridRef">
-        <div
-          v-for="(trip, index) in trips"
-          :key="trip.id"
-          class="trip-card"
-          :class="{ active: trip.id === activeTripId, expanded: expandedTripIds.has(trip.id) }"
-          :data-index="index"
-          @click="enterDetail(trip.id)"
+    <div class="gallery" ref="galleryRef">
+      <ul class="cards" ref="cardsRef">
+        <li
+            v-for="(trip, index) in trips"
+            :key="trip.id"
+            class="trip-card"
+            :data-index="index"
+            @click="handleCardClick(trip.id)"
         >
-          <div class="card-accent"></div>
-          <span class="card-index">{{ String(index + 1).padStart(2, '0') }}</span>
-
-          <div class="card-body">
-            <div class="card-main">
-              <h3 class="card-name">{{ trip.name }}</h3>
-              <p class="card-meta">
-                <span class="meta-dot"></span>
-                {{ trip.points.length }} 个地点
-                <span v-if="trip.points.length > 0" class="meta-separator">·</span>
-                <span v-if="trip.points.length > 0" class="meta-route">{{ getRouteSummary(trip) }}</span>
-              </p>
-            </div>
-
-            <div class="card-actions" @click.stop>
-              <button class="action-icon-btn" @click.stop="toggleTripCard(trip.id)" :title="expandedTripIds.has(trip.id) ? '收起' : '展开'">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="chevron" :class="{ expanded: expandedTripIds.has(trip.id) }">
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
-              </button>
-              <button class="action-icon-btn" @click.stop="startRenameTrip(trip)" title="重命名">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
-              </button>
-              <button class="action-icon-btn danger" v-if="trips.length > 1" @click.stop="deleteTrip(trip.id)" title="删除">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3 6 5 6 21 6"/>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          <div class="card-expand" v-show="expandedTripIds.has(trip.id)">
-            <div class="expand-inner">
-              <div v-if="trip.points.length === 0" class="expand-empty">暂无路线，进入行程添加地点</div>
-              <div v-else class="route-flow">
-                <div
-                  v-for="(point, pi) in trip.points.slice(0, 6)"
-                  :key="point.id"
-                  class="flow-item"
-                >
-                  <span class="flow-emoji">{{ markerIcons[point.type] || '📍' }}</span>
-                  <span class="flow-name">{{ point.name }}</span>
-                  <span v-if="pi < trip.points.length - 1 && pi < 5" class="flow-arrow">→</span>
-                </div>
-                <span v-if="trip.points.length > 6" class="flow-more">+{{ trip.points.length - 6 }}</span>
+          <div class="card-inner">
+            <div class="card-header-band" :style="{ '--trip-hue': getTripHue(index) }">
+              <div class="band-texture"></div>
+              <span class="card-index">{{ String(index + 1).padStart(2, '0') }}</span>
+              <div class="band-meta">
+                <span class="band-label">TRIP</span>
+                <span class="band-date">{{ getTripDate(trip) }}</span>
               </div>
             </div>
+
+            <div class="perforation">
+              <div class="perforation-hole left"></div>
+              <div class="perforation-line">
+                <span v-for="n in 24" :key="n" class="dash"></span>
+              </div>
+              <div class="perforation-hole right"></div>
+            </div>
+
+            <div class="card-body">
+              <div class="card-main">
+                <h3 class="card-name">{{ trip.name }}</h3>
+                <div class="card-stats">
+                  <div class="stat">
+                    <span class="stat-icon">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                        <circle cx="12" cy="10" r="3"/>
+                      </svg>
+                    </span>
+                    <span class="stat-value">{{ trip.points.length }}</span>
+                    <span class="stat-label">地点</span>
+                  </div>
+                  <div class="stat-divider"></div>
+                  <div v-if="trip.points.length > 1" class="stat">
+                    <span class="stat-icon">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2v20M2 12h20"/>
+                      </svg>
+                    </span>
+                    <span class="stat-value">{{ trip.points.length - 1 }}</span>
+                    <span class="stat-label">段行程</span>
+                  </div>
+                </div>
+                <p v-if="trip.points.length > 0" class="card-route">
+                  <span class="route-label">路线</span>
+                  <span class="route-text">{{ getRouteSummary(trip) }}</span>
+                </p>
+                <div v-else class="card-empty">
+                  <span>点击添加第一个地点</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="notch top-left"></div>
+            <div class="notch top-right"></div>
+            <div class="notch bottom-left"></div>
+            <div class="notch bottom-right"></div>
           </div>
-        </div>
+        </li>
+      </ul>
+
+      <div class="indicators">
+        <button
+            v-for="(_, i) in trips"
+            :key="i"
+            class="indicator"
+            :class="{ active: i === currentIndex }"
+            @click="goTo(i)"
+            :aria-label="`跳转到第 ${i + 1} 个行程`"
+        >
+          <span class="indicator-track"></span>
+          <span class="indicator-fill"></span>
+        </button>
+      </div>
+
+      <div class="actions">
+        <button class="action-btn prev-btn" @click="prev" :disabled="currentIndex === 0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+        <button class="action-btn next-btn" @click="next" :disabled="currentIndex === trips.length - 1">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </button>
       </div>
     </div>
 
-    <!-- 重命名弹窗 -->
-    <el-dialog
-      v-model="renameDialogVisible"
-      title="重命名行程"
-      width="360px"
-      :close-on-click-modal="true"
-    >
-      <el-input
-        v-model="renameInput"
-        placeholder="行程名称"
-        @keydown.enter="confirmRename"
-        ref="renameInputEl"
-      />
-      <template #footer>
-        <el-button @click="cancelRename">取消</el-button>
-        <el-button type="primary" @click="confirmRename">确认</el-button>
-      </template>
-    </el-dialog>
+    <div class="drag-proxy" ref="dragProxyRef"></div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { gsap } from 'gsap'
+import { Draggable } from 'gsap/Draggable'
 import { useTripStore } from '../composables/useTripStore.js'
-import { markerIcons } from '../data/sampleTrip.js'
-import gsap from 'gsap'
 
-const { trips, activeTripId, expandedTripIds, createTrip, deleteTrip, toggleTripCard, getRouteSummary, enterDetail } = useTripStore()
+gsap.registerPlugin(Draggable)
 
-const scrollRef = ref(null)
-const gridRef = ref(null)
-let expandAnimMap = new Map()
-let cardAnims = []
+const { trips, createTrip, getRouteSummary, enterDetail } = useTripStore()
 
-// 重命名行程
-const renameDialogVisible = ref(false)
-const renamingTrip = ref(null)
-const renameInput = ref('')
-const renameInputEl = ref(null)
+const galleryRef   = ref(null)
+const cardsRef     = ref(null)
+const dragProxyRef = ref(null)
+const currentIndex = ref(0)
 
-function startRenameTrip(trip) {
-  renamingTrip.value = trip
-  renameInput.value = trip.name
-  renameDialogVisible.value = true
+let cardW      = 0
+let draggable  = null
+let isDragging = false
+let isCreating = false   // 区分"新建"和其他数量变化
+
+const TRIP_HUES = [25, 45, 160, 200, 280, 340]
+function getTripHue(index) { return TRIP_HUES[index % TRIP_HUES.length] }
+function getTripDate(trip) {
+  const d = new Date(trip.id)
+  const months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
+  return `${months[d.getMonth()]} ${String(d.getDate()).padStart(2,'0')}`
+}
+function handleCardClick(id) {
+  if (isDragging) return
+  enterDetail(id)
 }
 
-function confirmRename() {
-  if (renamingTrip.value && renameInput.value.trim()) {
-    renamingTrip.value.name = renameInput.value.trim()
-  }
-  renameDialogVisible.value = false
-  renamingTrip.value = null
-  renameInput.value = ''
-}
+// ── 核心：所有卡片移动到 index 位置 ──────────────────────
+function goTo(index, instant = false) {
+  const total = trips.value.length
+  if (total === 0) return
+  const clamped = Math.max(0, Math.min(total - 1, index))
+  currentIndex.value = clamped
 
-function cancelRename() {
-  renameDialogVisible.value = false
-  renamingTrip.value = null
-  renameInput.value = ''
-}
+  const cardEls = cardsRef.value?.querySelectorAll('li')
+  if (!cardEls?.length) return
 
-// ===== GSAP 动画 =====
-
-// 卡片进入 stagger 动画
-function animateCardsEntrance() {
-  if (!gridRef.value) return
-  const cards = gridRef.value.querySelectorAll('.trip-card')
-  gsap.fromTo(cards,
-    { y: 40, opacity: 0, scale: 0.96 },
-    {
-      y: 0,
-      opacity: 1,
-      scale: 1,
-      duration: 0.6,
-      stagger: 0.08,
-      ease: 'power3.out',
-      clearProps: 'transform,opacity'
+  cardEls.forEach((el, i) => {
+    const dist  = Math.abs(i - clamped)
+    const props = {
+      x:       (i - clamped) * cardW,
+      scale:   i === clamped ? 1 : Math.max(0.7, 0.88 - dist * 0.06),
+      opacity: Math.max(0.25, 1 - dist * 0.3),
+      zIndex:  total - dist,
     }
-  )
+    instant
+        ? gsap.set(el, props)
+        : gsap.to(el, { ...props, duration: 0.55, ease: 'power3.out', overwrite: 'auto' })
+  })
 }
 
-// hover 动效已移除，待后续设计
+function prev() { goTo(currentIndex.value - 1) }
+function next() { goTo(currentIndex.value + 1) }
 
-// 展开/收起动画
-watch(expandedTripIds, async () => {
-  await nextTick()
-  if (!gridRef.value) return
-  const cards = gridRef.value.querySelectorAll('.trip-card')
-  cards.forEach(card => {
-    const tripId = Number(card.getAttribute('data-trip-id') || trips.value[card.getAttribute('data-index')]?.id)
-    const expandEl = card.querySelector('.card-expand')
-    if (!expandEl) return
+// ── 新建行程：绕过 watch 重建，自己做动画 ────────────────
+async function handleCreateTrip() {
+  isCreating = true
+  createTrip()           // push 新行程到 trips
 
-    const isExpanded = expandedTripIds.value.has(tripId)
-    const existing = expandAnimMap.get(tripId)
-    if (existing) existing.kill()
+  await nextTick()       // 等 Vue 渲染新 <li>
 
-    if (isExpanded) {
-      gsap.set(expandEl, { display: 'block', height: 'auto', opacity: 1 })
-      const h = expandEl.offsetHeight
-      gsap.fromTo(expandEl,
-        { height: 0, opacity: 0, overflow: 'hidden' },
-        { height: h, opacity: 1, duration: 0.35, ease: 'power2.out',
-          onComplete: () => { gsap.set(expandEl, { height: 'auto', overflow: 'visible' }) }
-        }
-      )
-      const flowItems = expandEl.querySelectorAll('.flow-item, .flow-more, .expand-empty')
-      gsap.fromTo(flowItems,
-        { y: 10, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.3, stagger: 0.04, delay: 0.1, ease: 'power2.out' }
-      )
+  const total   = trips.value.length
+  const newIdx  = total - 1
+  const cardEls = cardsRef.value?.querySelectorAll('li')
+  if (!cardEls?.length) { isCreating = false; return }
+
+  // 旧卡瞬间移到"以 newIdx 为中心"的位置（无动画，不闪）
+  cardEls.forEach((el, i) => {
+    if (i === newIdx) {
+      // 新卡先藏在右侧
+      gsap.set(el, { x: cardW * 1.5, scale: 0.9, opacity: 0, zIndex: total })
     } else {
-      const h = expandEl.offsetHeight
-      gsap.fromTo(expandEl,
-        { height: h, opacity: 1, overflow: 'hidden' },
-        { height: 0, opacity: 0, duration: 0.25, ease: 'power2.in',
-          onComplete: () => { gsap.set(expandEl, { display: 'none' }) }
-        }
-      )
+      const dist = Math.abs(i - newIdx)
+      gsap.set(el, {
+        x:       (i - newIdx) * cardW,
+        scale:   Math.max(0.7, 0.88 - dist * 0.06),
+        opacity: Math.max(0.25, 1 - dist * 0.3),
+        zIndex:  total - dist,
+      })
     }
   })
-}, { deep: true })
 
-onMounted(() => {
-  nextTick(() => {
-    animateCardsEntrance()
+  currentIndex.value = newIdx
+
+  // 新卡飞入
+  gsap.to(cardEls[newIdx], {
+    x: 0, scale: 1, opacity: 1,
+    duration: 0.45, ease: 'power3.out',
   })
-})
 
-onUnmounted(() => {
-  expandAnimMap.forEach(anim => anim && anim.kill())
-  gsap.killTweensOf('.trip-card')
-})
+  // 首次出现第二张卡时补初始化 Draggable
+  if (total === 2 && !draggable) initDraggable()
+
+  isCreating = false
+}
+
+// ── Draggable（可独立初始化）────────────────────────────
+function initDraggable() {
+  if (draggable || !dragProxyRef.value || !galleryRef.value) return
+  draggable = Draggable.create(dragProxyRef.value, {
+    type: 'x',
+    trigger: galleryRef.value,
+    minimumMovement: 6,
+    onPress()   { isDragging = false },
+    onDrag() {
+      isDragging = true
+      const delta   = this.x - this.startX
+      const cardEls = cardsRef.value?.querySelectorAll('li')
+      if (!cardEls) return
+      cardEls.forEach((el, i) => {
+        const dist = Math.abs(i - currentIndex.value)
+        gsap.set(el, {
+          x:       (i - currentIndex.value) * cardW + delta,
+          scale:   i === currentIndex.value ? 1 : Math.max(0.7, 0.88 - dist * 0.06),
+          opacity: Math.max(0.25, 1 - dist * 0.3),
+        })
+      })
+    },
+    onDragEnd() {
+      const delta = this.endX - this.startX
+      if      (delta < -cardW * 0.25) goTo(currentIndex.value + 1)
+      else if (delta >  cardW * 0.25) goTo(currentIndex.value - 1)
+      else                            goTo(currentIndex.value)
+      gsap.set(dragProxyRef.value, { x: 0 })
+      setTimeout(() => { isDragging = false }, 50)
+    },
+  })[0]
+}
+
+// ── 完整初始化（首次 mount 或删除行程后）──────────────────
+function initGSAP() {
+  const cardEls = cardsRef.value?.querySelectorAll('li')
+  if (!cardEls?.length) return
+
+  cardW = cardEls[0].getBoundingClientRect().width + 32   // 32px gap
+
+  currentIndex.value = Math.min(currentIndex.value, trips.value.length - 1)
+  goTo(currentIndex.value, true)
+
+  gsap.fromTo(
+      '.trip-card-list',
+      { opacity: 0, y: 24 },
+      { opacity: 1, y: 0, duration: 0.6, ease: 'power3.out' }
+  )
+
+  if (trips.value.length > 1) initDraggable()
+
+  const onWheel = (e) => {
+    if (!galleryRef.value?.contains(e.target)) return
+    e.preventDefault()
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY
+    if (d > 30) next(); else if (d < -30) prev()
+  }
+  galleryRef.value.addEventListener('wheel', onWheel, { passive: false })
+  galleryRef.value._onWheel = onWheel
+}
+
+function cleanupGSAP() {
+  draggable?.kill()
+  draggable = null
+  const onWheel = galleryRef.value?._onWheel
+  if (onWheel) galleryRef.value?.removeEventListener('wheel', onWheel)
+  gsap.killTweensOf(cardsRef.value?.querySelectorAll('li') ?? [])
+  isDragging = false
+}
+
+onMounted(() => { nextTick(initGSAP) })
+onUnmounted(() => { cleanupGSAP() })
+
+// watch 只处理删除等非新建的数量变化
+watch(
+    () => trips.value.length,
+    () => {
+      if (isCreating) return
+      nextTick(() => { cleanupGSAP(); initGSAP() })
+    }
+)
 </script>
 
 <style scoped>
 .trip-card-list {
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 32px 32px;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  --tc-bg: oklch(97.5% 0.008 80);
+  --tc-surface: oklch(100% 0 0);
+  --tc-ink: oklch(24% 0.02 260);
+  --tc-ink-muted: oklch(50% 0.025 260);
+  --tc-ink-faint: oklch(65% 0.02 260);
+  --tc-border: oklch(88% 0.015 80);
+  --tc-accent: oklch(55% 0.13 45);
+  --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
+  --space-lg: 16px; --space-xl: 24px; --space-2xl: 32px;
+
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  overflow: hidden; position: relative;
+  opacity: 0; background: var(--tc-bg);
 }
 
-/* ===== Header (Fixed) ===== */
 .trips-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 32px 0 24px;
-  flex-shrink: 0;
-  background: #f8fafc;
-  position: relative;
-  z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 24px; flex-shrink: 0; z-index: 10;
+  border-bottom: 1px solid oklch(90% 0.01 80);
 }
-
-.header-left {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-
+.header-left { display: flex; align-items: center; gap: 10px; }
 .header-title {
-  font-size: 32px;
-  font-weight: 800;
-  color: #1e293b;
-  letter-spacing: -0.04em;
-  line-height: 1.1;
-  margin: 0;
+  font-family: 'Noto Serif SC', serif;
+  font-size: 0.8125rem; font-weight: 600; color: var(--tc-ink-muted);
+  letter-spacing: 0.12em; margin: 0; text-transform: uppercase;
 }
-
 .header-count {
-  font-size: 13px;
-  font-weight: 600;
-  color: #94a3b8;
-  background: #f1f5f9;
-  padding: 4px 12px;
-  border-radius: 20px;
+  font-size: 0.6875rem; font-weight: 500; color: var(--tc-ink-faint);
+  background: oklch(93% 0.008 80); padding: 2px 8px; border-radius: 4px;
+  border: 1px solid oklch(88% 0.01 80);
 }
-
 .new-btn {
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 12px; border-radius: 6px;
+  border: 1px solid oklch(82% 0.04 45);
+  background: transparent; color: var(--tc-ink-muted);
+  font-size: 0.75rem; font-weight: 500; cursor: pointer;
+  transition: all 0.18s ease; letter-spacing: 0.03em;
+}
+.new-btn:hover { background: oklch(55% 0.13 45); border-color: oklch(55% 0.13 45); color: oklch(99% 0.01 80); }
+.new-btn:active { background: oklch(48% 0.13 45); border-color: oklch(48% 0.13 45); color: oklch(99% 0.01 80); }
+
+.gallery {
+  flex: 1; position: relative; overflow: hidden;
+  touch-action: none;
 }
 
-/* ===== Scroll Area ===== */
-.trips-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: thin;
-  padding-bottom: 24px;
+.cards {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 17rem; height: 26rem;
+  list-style: none; margin: 0; padding: 0;
 }
 
-/* ===== Grid Layout ===== */
-.trips-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-  align-content: start;
-  align-items: start;
-}
-
-@media (min-width: 1024px) {
-  .trips-grid {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 24px;
-  }
-}
-
-@media (max-width: 640px) {
-  .trips-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-}
-
-/* ===== Trip Card ===== */
 .trip-card {
-  position: relative;
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 20px;
-  padding: 24px;
-  cursor: pointer;
-  overflow: hidden;
-  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  position: absolute; width: 17rem; height: 26rem;
+  border-radius: 1rem; overflow: hidden; cursor: pointer;
+  will-change: transform, opacity; transform-origin: center center;
 }
 
-.trip-card.active {
-  border-color: rgba(99, 102, 241, 0.35);
-  background: linear-gradient(135deg, rgba(99,102,241,0.03) 0%, rgba(255,255,255,1) 60%);
+.card-inner {
+  width: 100%; height: 100%; background: var(--tc-surface);
+  border-radius: 1rem; overflow: hidden; position: relative;
+  display: flex; flex-direction: column; transition: box-shadow 0.35s ease;
+  box-shadow: 0 1px 2px oklch(20% 0.01 260 / 0.04), 0 4px 8px oklch(20% 0.01 260 / 0.04), 0 12px 24px oklch(20% 0.01 260 / 0.06);
+}
+.trip-card:hover .card-inner {
+  box-shadow: 0 1px 2px oklch(20% 0.01 260 / 0.04), 0 8px 16px oklch(20% 0.01 260 / 0.06), 0 24px 48px oklch(20% 0.01 260 / 0.1);
 }
 
-/* 底部渐变条 */
-.trip-card::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 3px;
-  background: linear-gradient(90deg, #6366f1, #818cf8);
-  transform: scaleX(0);
-  transform-origin: left;
-  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+.card-header-band {
+  --band-color: oklch(62% 0.11 var(--trip-hue, 45));
+  position: relative; height: 42%; background: var(--band-color);
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: var(--space-xl); overflow: hidden;
 }
-
-.trip-card:hover::after,
-.trip-card.active::after {
-  transform: scaleX(1);
+.band-texture {
+  position: absolute; inset: 0; opacity: 0.06; pointer-events: none;
+  background-image: repeating-linear-gradient(45deg, transparent, transparent 2px, oklch(100% 0 0) 2px, oklch(100% 0 0) 4px);
 }
-
-.trip-card:hover {
-  border-color: #cbd5e1;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
-}
-
-/* 装饰色块 */
-.card-accent {
-  position: absolute;
-  top: -30px;
-  right: -30px;
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(99,102,241,0.1) 0%, transparent 70%);
-  pointer-events: none;
-  opacity: 0.1;
-  will-change: transform, opacity;
-}
-
-/* 序号装饰 */
 .card-index {
-  position: absolute;
-  bottom: 10px;
-  right: 16px;
-  font-size: 48px;
-  font-weight: 800;
-  color: rgba(99, 102, 241, 0.06);
-  line-height: 1;
-  letter-spacing: -0.04em;
-  pointer-events: none;
-  user-select: none;
-  will-change: color;
+  font-size: 3.5rem; font-weight: 800; color: oklch(100% 0 0 / 0.25);
+  line-height: 1; letter-spacing: -0.04em; user-select: none; pointer-events: none; position: relative; z-index: 1;
 }
+.band-meta { display: flex; justify-content: space-between; align-items: flex-end; position: relative; z-index: 1; }
+.band-label { font-size: 0.625rem; font-weight: 700; color: oklch(100% 0 0 / 0.7); letter-spacing: 0.15em; }
+.band-date  { font-size: 0.75rem; font-weight: 500; color: oklch(100% 0 0 / 0.85); }
 
-/* Card Body */
+.perforation { position: relative; height: 14px; flex-shrink: 0; background: var(--tc-surface); }
+.perforation-hole {
+  position: absolute; top: 50%; width: 14px; height: 14px;
+  background: var(--tc-bg); border-radius: 50%; transform: translateY(-50%); z-index: 2;
+}
+.perforation-hole.left  { left: -7px; }
+.perforation-hole.right { right: -7px; }
+.perforation-line {
+  position: absolute; top: 50%; left: 10px; right: 10px;
+  transform: translateY(-50%); display: flex; justify-content: space-between; align-items: center;
+}
+.dash { width: 4px; height: 1.5px; background: var(--tc-border); border-radius: 1px; }
+
 .card-body {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  position: relative;
-  z-index: 1;
+  flex: 1; display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 0 var(--space-xl) var(--space-xl); background: var(--tc-surface);
 }
-
-.card-main {
-  flex: 1;
-  min-width: 0;
-  padding-right: 40px;
-}
-
+.card-main { position: relative; z-index: 1; }
 .card-name {
-  font-size: 20px;
-  font-weight: 700;
-  color: #1e293b;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
-  margin: 0 0 10px 0;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  font-family: 'Noto Serif SC', serif;
+  font-size: 1.375rem; font-weight: 700; color: var(--tc-ink);
+  letter-spacing: 0.03em; line-height: 1.35; margin: 0 0 var(--space-md) 0;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 
-.card-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: #94a3b8;
-  font-weight: 500;
-  margin: 0;
-  flex-wrap: wrap;
-}
+.card-stats { display: flex; align-items: center; gap: var(--space-sm); margin-bottom: var(--space-md); }
+.stat { display: flex; align-items: center; gap: var(--space-xs); }
+.stat-icon { display: flex; align-items: center; color: var(--tc-ink-faint); }
+.stat-value { font-size: 0.9375rem; font-weight: 700; color: var(--tc-ink); }
+.stat-label { font-size: 0.75rem; font-weight: 500; color: var(--tc-ink-faint); }
+.stat-divider { width: 1px; height: 14px; background: var(--tc-border); }
 
-.meta-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #6366f1;
-  flex-shrink: 0;
-}
+.card-route { display: flex; align-items: baseline; gap: var(--space-sm); margin: 0; }
+.route-label { font-size: 0.625rem; font-weight: 600; color: var(--tc-ink-faint); letter-spacing: 0.1em; text-transform: uppercase; flex-shrink: 0; }
+.route-text  { font-size: 0.8125rem; color: var(--tc-ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-empty span { font-size: 0.8125rem; color: var(--tc-ink-faint); font-style: italic; }
 
-.meta-separator {
-  color: #cbd5e1;
-}
+.notch { position: absolute; width: 10px; height: 10px; background: var(--tc-bg); border-radius: 50%; z-index: 3; }
+.notch.top-left     { top: -5px;    left: -5px;  }
+.notch.top-right    { top: -5px;    right: -5px; }
+.notch.bottom-left  { bottom: -5px; left: -5px;  }
+.notch.bottom-right { bottom: -5px; right: -5px; }
 
-.meta-route {
-  max-width: 160px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.indicators {
+  position: absolute; bottom: 84px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: var(--space-sm); z-index: 20;
 }
-
-/* Actions */
-.card-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-  opacity: 0.35;
-  transition: opacity 0.25s ease;
+.indicator {
+  position: relative; width: 28px; height: 4px; padding: 0;
+  border: none; background: none; cursor: pointer; border-radius: 2px; overflow: hidden;
 }
-
-.trip-card:hover .card-actions {
-  opacity: 1;
+.indicator-track { position: absolute; inset: 0; background: oklch(85% 0.015 80); border-radius: 2px; }
+.indicator-fill {
+  position: absolute; inset: 0; background: var(--tc-accent); border-radius: 2px;
+  transform: scaleX(0); transform-origin: left center;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
+.indicator.active .indicator-fill { transform: scaleX(1); }
 
-.action-icon-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  border: none;
-  background: transparent;
-  color: #94a3b8;
-  cursor: pointer;
-  transition: all 0.2s ease;
+.actions {
+  position: absolute; bottom: var(--space-xl); left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: var(--space-md); z-index: 20;
 }
-
-.action-icon-btn:hover {
-  background: #f1f5f9;
-  color: #6366f1;
+.action-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 50%;
+  border: 1px solid var(--tc-border); background: var(--tc-surface);
+  color: var(--tc-ink-muted); cursor: pointer; transition: all 0.25s ease;
+  box-shadow: 0 1px 3px oklch(20% 0.01 260 / 0.04);
 }
-
-.action-icon-btn.danger:hover {
-  background: #fef2f2;
-  color: #ef4444;
+.action-btn:hover:not(:disabled) {
+  border-color: oklch(75% 0.06 45); color: var(--tc-accent);
+  box-shadow: 0 4px 12px oklch(20% 0.01 260 / 0.08); transform: translateY(-1px);
 }
+.action-btn:active:not(:disabled) { transform: translateY(0) scale(0.95); }
+.action-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
-.chevron {
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
+.drag-proxy { visibility: hidden; position: absolute; width: 1px; height: 1px; top: 0; left: 0; }
 
-.chevron.expanded {
-  transform: rotate(180deg);
-}
-
-/* Expand Section */
-.card-expand {
-  position: relative;
-  z-index: 1;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px dashed #e2e8f0;
-  display: none;
-  overflow: hidden;
-}
-
-.expand-inner {
-  padding: 4px 0;
-}
-
-.expand-empty {
-  font-size: 13px;
-  color: #94a3b8;
-  font-style: italic;
-}
-
-.route-flow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 6px;
-}
-
-.flow-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  color: #475569;
-  font-weight: 500;
-}
-
-.flow-emoji {
-  font-size: 14px;
-}
-
-.flow-name {
-  white-space: nowrap;
-}
-
-.flow-arrow {
-  color: #cbd5e1;
-  font-weight: 400;
-  margin: 0 2px;
-}
-
-.flow-more {
-  font-size: 12px;
-  font-weight: 600;
-  color: #6366f1;
-  background: rgba(99, 102, 241, 0.08);
-  padding: 3px 10px;
-  border-radius: 12px;
-}
-
-/* ===== Responsive ===== */
 @media (max-width: 768px) {
-  .trip-card-list {
-    padding: 0 20px 20px;
-  }
-
-  .trips-header {
-    padding: 24px 0 16px;
-  }
-
-  .header-title {
-    font-size: 26px;
-  }
-
-  .trip-card {
-    padding: 20px;
-  }
-
-  .card-name {
-    font-size: 18px;
-  }
-
-  .card-index {
-    font-size: 36px;
-    bottom: 6px;
-    right: 12px;
-  }
-
-  .meta-route {
-    max-width: 120px;
-  }
-
-  .card-actions {
-    opacity: 1;
-  }
+  .trips-header { padding: var(--space-xl) var(--space-lg) var(--space-md); }
+  .cards, .trip-card { width: 14rem; height: 22rem; }
+  .card-header-band { padding: var(--space-lg); }
+  .card-index { font-size: 3rem; }
+  .card-body  { padding: 0 var(--space-lg) var(--space-lg); }
+  .card-name  { font-size: 1.125rem; }
+  .action-btn { width: 40px; height: 40px; }
 }
 </style>

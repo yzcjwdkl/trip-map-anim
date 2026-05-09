@@ -1,9 +1,21 @@
 <template>
   <div class="app" :class="{ 'is-fullscreen': isFullscreen }">
-    <header class="header" v-show="!isFullscreen">
-      <div class="header-content">
-        <h1>旅行轨迹动画</h1>
-        <span class="header-subtitle">用动画展示你的旅行足迹</span>
+    <header class="header">
+      <div class="header-inner">
+        <div class="brand">
+          <svg class="brand-mark" width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <circle cx="14" cy="14" r="13" stroke="currentColor" stroke-width="1.2"/>
+            <path d="M8 14 Q14 8 20 14 Q14 20 8 14Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" fill="none"/>
+            <circle cx="14" cy="14" r="2" fill="currentColor"/>
+          </svg>
+          <div class="brand-text">
+            <span class="brand-name">旅行轨迹</span>
+            <span class="brand-tagline">用动画记录你的每一步</span>
+          </div>
+        </div>
+        <div class="header-meta">
+          <span class="meta-hint">向下滚动切换行程</span>
+        </div>
       </div>
     </header>
     <main class="main" :class="{ 'no-padding': isFullscreen }">
@@ -32,7 +44,6 @@ function toggleFullscreen() {
   }
 }
 
-// ESC 退出全屏时同步状态
 document.addEventListener('fullscreenchange', () => {
   if (!document.fullscreenElement) {
     isFullscreen.value = false
@@ -41,53 +52,115 @@ document.addEventListener('fullscreenchange', () => {
 </script>
 
 <style scoped>
+/* ─── App Shell ─── */
 .app {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #f8fafc;
+  overflow: hidden;
+  background: oklch(98% 0.004 80);
 }
 
+/* ─── Header ─── */
 .header {
-  background: #ffffff;
-  border-bottom: 1px solid #f1f5f9;
-  padding: 16px 24px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  flex-shrink: 0;
+  border-bottom: 1px solid oklch(88% 0.008 80);
+  background: oklch(99% 0.003 80);
+  position: relative;
+}
+
+.header::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    oklch(70% 0.04 45) 20%,
+    oklch(60% 0.06 45) 50%,
+    oklch(70% 0.04 45) 80%,
+    transparent 100%
+  );
+  opacity: 0.25;
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 32px;
+  height: 56px;
+}
+
+/* ─── Brand ─── */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-mark {
+  color: oklch(55% 0.13 45);
   flex-shrink: 0;
 }
 
-.header-content {
+.brand-text {
   display: flex;
   align-items: baseline;
-  gap: 16px;
+  gap: 10px;
 }
 
-.header h1 {
-  font-size: 1.125rem;
+.brand-name {
+  font-family: 'Noto Serif SC', 'Source Han Serif SC', serif;
+  font-size: 1rem;
   font-weight: 600;
-  color: #1e293b;
-  letter-spacing: -0.02em;
-  margin: 0;
+  letter-spacing: 0.04em;
+  color: oklch(25% 0.02 260);
+  line-height: 1;
 }
 
-.header-subtitle {
-  font-size: 0.8125rem;
-  color: #94a3b8;
+.brand-tagline {
+  font-family: 'Noto Sans SC', -apple-system, sans-serif;
+  font-size: 0.6875rem;
+  color: oklch(55% 0.02 260);
+  letter-spacing: 0.06em;
+  font-weight: 300;
+}
+
+/* ─── Header Meta ─── */
+.header-meta {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.meta-hint {
+  font-family: 'Noto Sans SC', -apple-system, sans-serif;
+  font-size: 0.6875rem;
+  color: oklch(62% 0.015 260);
+  letter-spacing: 0.05em;
   font-weight: 400;
 }
 
+/* ─── Main ─── */
 .main {
   flex: 1;
-  padding: 24px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
   overflow: hidden;
 }
 
-.app.is-fullscreen {
-  min-height: 100vh;
+/* ─── Fullscreen ─── */
+.app.is-fullscreen .header {
+  display: none;
 }
 
 .main.no-padding {
   padding: 0;
-  height: 100vh;
 }
 </style>

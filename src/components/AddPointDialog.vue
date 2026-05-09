@@ -1,8 +1,9 @@
 <template>
-  <!-- 添加点位按钮 -->
-  <el-button class="add-point-btn" type="primary" plain @click="openDialog" :disabled="!mapReady">
-    添加点位
-  </el-button>
+  <div class="add-point-wrap" v-bind="$attrs">
+    <!-- 添加点位按钮 -->
+    <el-button class="add-point-btn" type="primary" plain @click="openDialog" :disabled="!mapReady">
+      添加点位
+    </el-button>
 
   <!-- 弹窗 -->
   <el-dialog
@@ -91,11 +92,14 @@
       </el-button>
     </template>
   </el-dialog>
+  </div>
 </template>
 
 <script setup>
 import { ref, nextTick } from 'vue'
 import AMapLoader from '@amap/amap-jsapi-loader'
+
+defineOptions({ inheritAttrs: false })
 
 const props = defineProps({ mapReady: Boolean })
 const emit = defineEmits(['add'])
@@ -228,10 +232,10 @@ function confirmAdd() {
 <style scoped>
 .add-point-btn {
   padding: 9px 14px;
-  background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(129,140,248,0.05));
-  border: 1px solid rgba(99,102,241,0.2);
+  background: oklch(55% 0.13 45 / 0.06);
+  border: 1.5px solid oklch(55% 0.13 45 / 0.2);
   border-radius: 10px;
-  color: #6366f1;
+  color: oklch(55% 0.13 45);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -240,8 +244,8 @@ function confirmAdd() {
   flex-shrink: 0;
 }
 .add-point-btn:hover {
-  background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(129,140,248,0.08));
-  border-color: rgba(99,102,241,0.3);
+  background: oklch(55% 0.13 45 / 0.1);
+  border-color: oklch(55% 0.13 45 / 0.35);
 }
 .add-point-btn:disabled {
   opacity: 0.4;
@@ -266,7 +270,7 @@ function confirmAdd() {
   transition: background 0.15s;
 }
 .result-item:hover, .result-item.selected {
-  background: rgba(99,102,241,0.06);
+  background: oklch(55% 0.13 45 / 0.06);
 }
 .result-name { font-size: 13px; font-weight: 500; color: #1e293b; }
 .result-address { font-size: 11px; color: #94a3b8; margin-top: 2px; }
