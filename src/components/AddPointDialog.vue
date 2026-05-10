@@ -232,10 +232,10 @@ function confirmAdd() {
 <style scoped>
 .add-point-btn {
   padding: 9px 14px;
-  background: oklch(55% 0.13 45 / 0.06);
-  border: 1.5px solid oklch(55% 0.13 45 / 0.2);
+  background: oklch(55% 0.18 290 / 0.06);
+  border: 1.5px solid oklch(55% 0.18 290 / 0.2);
   border-radius: 10px;
-  color: oklch(55% 0.13 45);
+  color: oklch(55% 0.18 290);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -244,8 +244,8 @@ function confirmAdd() {
   flex-shrink: 0;
 }
 .add-point-btn:hover {
-  background: oklch(55% 0.13 45 / 0.1);
-  border-color: oklch(55% 0.13 45 / 0.35);
+  background: oklch(55% 0.18 290 / 0.1);
+  border-color: oklch(55% 0.18 290 / 0.35);
 }
 .add-point-btn:disabled {
   opacity: 0.4;
@@ -270,7 +270,7 @@ function confirmAdd() {
   transition: background 0.15s;
 }
 .result-item:hover, .result-item.selected {
-  background: oklch(55% 0.13 45 / 0.06);
+  background: oklch(55% 0.18 290 / 0.06);
 }
 .result-name { font-size: 13px; font-weight: 500; color: #1e293b; }
 .result-address { font-size: 11px; color: #94a3b8; margin-top: 2px; }

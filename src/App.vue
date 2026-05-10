@@ -79,9 +79,9 @@ document.addEventListener('fullscreenchange', () => {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    oklch(70% 0.04 45) 20%,
-    oklch(60% 0.06 45) 50%,
-    oklch(70% 0.04 45) 80%,
+    oklch(65% 0.08 290) 20%,
+    oklch(55% 0.1 290) 50%,
+    oklch(65% 0.08 290) 80%,
     transparent 100%
   );
   opacity: 0.25;
@@ -103,7 +103,7 @@ document.addEventListener('fullscreenchange', () => {
 }
 
 .brand-mark {
-  color: oklch(55% 0.13 45);
+  color: oklch(55% 0.18 290);
   flex-shrink: 0;
 }
 
@@ -118,14 +118,14 @@ document.addEventListener('fullscreenchange', () => {
   font-size: 1rem;
   font-weight: 600;
   letter-spacing: 0.04em;
-  color: oklch(25% 0.02 260);
+  color: oklch(25% 0.02 290);
   line-height: 1;
 }
 
 .brand-tagline {
   font-family: 'Noto Sans SC', -apple-system, sans-serif;
   font-size: 0.6875rem;
-  color: oklch(55% 0.02 260);
+  color: oklch(55% 0.02 290);
   letter-spacing: 0.06em;
   font-weight: 300;
 }
@@ -140,7 +140,7 @@ document.addEventListener('fullscreenchange', () => {
 .meta-hint {
   font-family: 'Noto Sans SC', -apple-system, sans-serif;
   font-size: 0.6875rem;
-  color: oklch(62% 0.015 260);
+  color: oklch(62% 0.015 290);
   letter-spacing: 0.05em;
   font-weight: 400;
 }
@@ -151,7 +151,7 @@ document.addEventListener('fullscreenchange', () => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 20px;
+  padding: 0;
   overflow: hidden;
 }
 

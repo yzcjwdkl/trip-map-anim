@@ -8,15 +8,15 @@
       aria-hidden="true"
   >
     <defs>
-      <!-- 下层渐变：暖沙 → 深陶土 -->
+      <!-- 下层渐变：浅紫 → 紫罗兰 -->
       <linearGradient id="wv-grad-1" x1="0%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%"   stop-color="oklch(72% 0.1 55)" />
-        <stop offset="100%" stop-color="oklch(52% 0.13 45)" />
+        <stop offset="0%"   stop-color="oklch(72% 0.1 290)" />
+        <stop offset="100%" stop-color="oklch(52% 0.15 290)" />
       </linearGradient>
-      <!-- 上层渐变：浅琥珀 → 陶土 -->
+      <!-- 上层渐变：薰衣草 → 深紫 -->
       <linearGradient id="wv-grad-2" x1="0%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%"   stop-color="oklch(78% 0.09 55)" />
-        <stop offset="100%" stop-color="oklch(60% 0.12 45)" />
+        <stop offset="0%"   stop-color="oklch(78% 0.09 290)" />
+        <stop offset="100%" stop-color="oklch(60% 0.12 290)" />
       </linearGradient>
     </defs>
 

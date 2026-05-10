@@ -301,20 +301,24 @@ watch(
 
 <style scoped>
 .trip-card-list {
-  --tc-bg: oklch(97.5% 0.008 80);
+  --tc-bg: oklch(98% 0.004 290);
   --tc-surface: oklch(100% 0 0);
-  --tc-ink: oklch(24% 0.02 260);
-  --tc-ink-muted: oklch(50% 0.025 260);
-  --tc-ink-faint: oklch(65% 0.02 260);
-  --tc-border: oklch(88% 0.015 80);
-  --tc-accent: oklch(55% 0.13 45);
+  --tc-ink: oklch(25% 0.02 290);
+  --tc-ink-muted: oklch(50% 0.025 290);
+  --tc-ink-faint: oklch(65% 0.02 290);
+  --tc-border: oklch(88% 0.015 290);
+  --tc-accent: oklch(55% 0.15 290);
   --space-xs: 4px; --space-sm: 8px; --space-md: 12px;
   --space-lg: 16px; --space-xl: 24px; --space-2xl: 32px;
 
-  width: 100%; height: 100%;
-  display: flex; flex-direction: column;
-  overflow: hidden; position: relative;
-  opacity: 0; background: var(--tc-bg);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  opacity: 1;
+  background: var(--tc-bg);
 }
 
 .trips-header {
@@ -336,16 +340,19 @@ watch(
 .new-btn {
   display: flex; align-items: center; gap: 5px;
   padding: 5px 12px; border-radius: 6px;
-  border: 1px solid oklch(82% 0.04 45);
+  border: 1px solid oklch(82% 0.04 290);
   background: transparent; color: var(--tc-ink-muted);
   font-size: 0.75rem; font-weight: 500; cursor: pointer;
   transition: all 0.18s ease; letter-spacing: 0.03em;
 }
-.new-btn:hover { background: oklch(55% 0.13 45); border-color: oklch(55% 0.13 45); color: oklch(99% 0.01 80); }
-.new-btn:active { background: oklch(48% 0.13 45); border-color: oklch(48% 0.13 45); color: oklch(99% 0.01 80); }
+.new-btn:hover { background: oklch(55% 0.15 290); border-color: oklch(55% 0.15 290); color: oklch(99% 0.01 290); }
+.new-btn:active { background: oklch(48% 0.15 290); border-color: oklch(48% 0.15 290); color: oklch(99% 0.01 290); }
 
 .gallery {
-  flex: 1; position: relative; overflow: hidden;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
   touch-action: none;
 }
 
@@ -367,14 +374,14 @@ watch(
   width: 100%; height: 100%; background: var(--tc-surface);
   border-radius: 1rem; overflow: hidden; position: relative;
   display: flex; flex-direction: column; transition: box-shadow 0.35s ease;
-  box-shadow: 0 1px 2px oklch(20% 0.01 260 / 0.04), 0 4px 8px oklch(20% 0.01 260 / 0.04), 0 12px 24px oklch(20% 0.01 260 / 0.06);
+  box-shadow: 0 1px 2px oklch(20% 0.01 290 / 0.04), 0 4px 8px oklch(20% 0.01 290 / 0.04), 0 12px 24px oklch(20% 0.01 290 / 0.06);
 }
 .trip-card:hover .card-inner {
-  box-shadow: 0 1px 2px oklch(20% 0.01 260 / 0.04), 0 8px 16px oklch(20% 0.01 260 / 0.06), 0 24px 48px oklch(20% 0.01 260 / 0.1);
+  box-shadow: 0 1px 2px oklch(20% 0.01 290 / 0.04), 0 8px 16px oklch(20% 0.01 290 / 0.06), 0 24px 48px oklch(20% 0.01 290 / 0.1);
 }
 
 .card-header-band {
-  --band-color: oklch(62% 0.11 var(--trip-hue, 45));
+  --band-color: oklch(62% 0.11 var(--trip-hue, 290));
   position: relative; height: 42%; background: var(--band-color);
   display: flex; flex-direction: column; justify-content: space-between;
   padding: var(--space-xl); overflow: hidden;
@@ -459,11 +466,11 @@ watch(
   width: 44px; height: 44px; border-radius: 50%;
   border: 1px solid var(--tc-border); background: var(--tc-surface);
   color: var(--tc-ink-muted); cursor: pointer; transition: all 0.25s ease;
-  box-shadow: 0 1px 3px oklch(20% 0.01 260 / 0.04);
+  box-shadow: 0 1px 3px oklch(20% 0.01 290 / 0.04);
 }
 .action-btn:hover:not(:disabled) {
-  border-color: oklch(75% 0.06 45); color: var(--tc-accent);
-  box-shadow: 0 4px 12px oklch(20% 0.01 260 / 0.08); transform: translateY(-1px);
+  border-color: oklch(75% 0.06 290); color: var(--tc-accent);
+  box-shadow: 0 4px 12px oklch(20% 0.01 290 / 0.08); transform: translateY(-1px);
 }
 .action-btn:active:not(:disabled) { transform: translateY(0) scale(0.95); }
 .action-btn:disabled { opacity: 0.3; cursor: not-allowed; }

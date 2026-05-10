@@ -1,5 +1,10 @@
 <template>
-  <div class="travel-map" :class="{ 'is-fullscreen': props.fullscreen }">
+  <div class="travel-map" :class="{ 'is-fullscreen': props.fullscreen }" ref="travelMapRef">
+    <!-- 鼠标跟随效果 - 使用 Teleport 渲染到 body -->
+    <Teleport to="body">
+      <div class="flair" ref="flairRef"></div>
+    </Teleport>
+
     <!-- 波浪背景 -->
     <TransitionWave
       :phase="wavePhase"
@@ -22,7 +27,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { gsap } from 'gsap'
 import TripCardList from '../components/TripCardList.vue'
 import TripDetail from '../components/TripDetail.vue'
@@ -34,11 +39,33 @@ const emit = defineEmits(['toggle-fullscreen'])
 
 const { viewMode, currentDetailTripId, exitDetail } = useTripStore()
 
+const travelMapRef = ref(null)
+const flairRef = ref(null)
 const viewLayerRef = ref(null)
 const detailRef = ref(null)
 
 const effectiveMode = ref('list')
 const wavePhase = ref('idle')
+
+// ==================== 鼠标跟随效果 ====================
+let xTo = null
+let yTo = null
+
+function initFlair() {
+  if (!flairRef.value) return
+
+  gsap.set(flairRef.value, { xPercent: -50, yPercent: -50 })
+
+  xTo = gsap.quickTo(flairRef.value, "x", { duration: 0.6, ease: "power3" })
+  yTo = gsap.quickTo(flairRef.value, "y", { duration: 0.6, ease: "power3" })
+
+  const handleMouseMove = (e) => {
+    xTo(e.clientX)
+    yTo(e.clientY)
+  }
+
+  window.addEventListener('mousemove', handleMouseMove)
+}
 
 // ─── 进入详情 ───
 watch(viewMode, (next) => {
@@ -82,6 +109,10 @@ function exitDetailAnimated() {
   gsap.set(viewLayerRef.value, { opacity: 1, y: 0 })
   exitDetail()
 }
+
+onMounted(() => {
+  initFlair()
+})
 </script>
 
 <style scoped>

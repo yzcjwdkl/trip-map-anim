@@ -26,7 +26,7 @@
           :cx="ringState.screenX"
           :cy="ringState.screenY"
           :r="ringState.outerR"
-          fill="oklch(55% 0.13 45 / 0.15)"
+          fill="oklch(55% 0.18 290 / 0.15)"
           :mask="'url(#rm-' + uid + ')'"
         />
       </svg>
@@ -922,7 +922,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 16px;
-  background: oklch(98% 0.004 80);
+  background: oklch(98% 0.004 290);
   pointer-events: none;
 }
 
@@ -936,7 +936,7 @@ onUnmounted(() => {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: oklch(55% 0.13 45);
+  background: oklch(55% 0.18 290);
   animation: loadingPulse 1.2s ease-in-out infinite;
 }
 
@@ -951,7 +951,7 @@ onUnmounted(() => {
 .loading-text {
   font-family: 'Noto Sans SC', -apple-system, sans-serif;
   font-size: 0.75rem;
-  color: oklch(60% 0.02 260);
+  color: oklch(60% 0.02 290);
   letter-spacing: 0.06em;
 }
 
@@ -1010,48 +1010,48 @@ onUnmounted(() => {
 .detail-trip-name {
   font-family: 'Noto Serif SC', serif;
   font-size: 0.9375rem; font-weight: 600;
-  color: oklch(25% 0.02 260); letter-spacing: 0.02em;
+  color: oklch(25% 0.02 290); letter-spacing: 0.02em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;
 }
 .detail-back-bar .el-button {
   font-family: 'Noto Sans SC', sans-serif;
   font-size: 0.75rem; font-weight: 500;
-  color: oklch(55% 0.13 45);
+  color: oklch(55% 0.18 290);
   letter-spacing: 0.02em;
   flex-shrink: 0;
 }
-.detail-back-bar .el-button:hover { color: oklch(48% 0.13 45); }
+.detail-back-bar .el-button:hover { color: oklch(48% 0.18 290); }
 
 /* ─── 状态栏（当前点位） ─── */
 .status-bar {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 14px;
-  background: oklch(96% 0.008 65 / 0.5);
-  border: 1px solid oklch(88% 0.02 65);
+  background: oklch(96% 0.008 290 / 0.5);
+  border: 1px solid oklch(88% 0.02 290);
   border-radius: 0.75rem;
   margin-bottom: 16px;
   transition: all 0.2s ease;
 }
 .status-bar:hover {
-  border-color: oklch(75% 0.05 45);
-  box-shadow: 0 2px 8px oklch(65% 0.05 45 / 0.08);
+  border-color: oklch(75% 0.06 290);
+  box-shadow: 0 2px 8px oklch(65% 0.06 290 / 0.08);
 }
 .status-main { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
 .status-icon {
   font-size: 16px; width: 36px; height: 36px;
   display: flex; align-items: center; justify-content: center;
-  background: oklch(72% 0.12 65);
+  background: oklch(72% 0.12 290);
   border-radius: 0.6rem; flex-shrink: 0;
 }
 .status-info { flex: 1; min-width: 0; }
 .status-name {
   font-family: 'Noto Sans SC', sans-serif;
   font-weight: 600; font-size: 0.8125rem;
-  color: oklch(25% 0.02 260);
+  color: oklch(25% 0.02 290);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .status-desc {
-  font-size: 0.6875rem; color: oklch(55% 0.02 260);
+  font-size: 0.6875rem; color: oklch(55% 0.02 290);
   margin-top: 2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
@@ -1062,11 +1062,11 @@ onUnmounted(() => {
 .count-num {
   font-family: 'Noto Sans SC', sans-serif;
   font-size: 1.375rem; font-weight: 700;
-  color: oklch(55% 0.13 45); line-height: 1;
+  color: oklch(55% 0.18 290); line-height: 1;
   letter-spacing: -0.03em;
 }
 .count-unit {
-  font-size: 0.625rem; color: oklch(55% 0.02 260);
+  font-size: 0.625rem; color: oklch(55% 0.02 290);
   margin-top: 2px; letter-spacing: 0.04em;
 }
 .add-in-status { flex-shrink: 0; }
@@ -1074,22 +1074,22 @@ onUnmounted(() => {
 /* ─── 进度条 ─── */
 .progress-section { margin-bottom: 16px; }
 .progress-bar {
-  height: 3px; background: oklch(92% 0.01 80);
+  height: 3px; background: oklch(92% 0.01 290);
   border-radius: 2px; overflow: hidden;
 }
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, oklch(65% 0.11 45), oklch(55% 0.13 45));
+  background: linear-gradient(90deg, oklch(65% 0.14 290), oklch(55% 0.18 290));
   border-radius: 2px;
   transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .progress-text {
   display: flex; justify-content: space-between; align-items: center;
-  font-size: 0.6875rem; color: oklch(55% 0.02 260);
+  font-size: 0.6875rem; color: oklch(55% 0.02 290);
   margin-top: 8px; letter-spacing: 0.03em;
 }
 .progress-text span:last-child {
-  font-weight: 700; color: oklch(55% 0.13 45);
+  font-weight: 700; color: oklch(55% 0.18 290);
 }
 
 /* ─── 操作按钮行 ─── */
@@ -1098,52 +1098,52 @@ onUnmounted(() => {
 .player-controls .el-button {
   font-family: 'Noto Sans SC', sans-serif;
   font-size: 0.75rem; font-weight: 500;
-  border-radius: 0.5rem; border-color: oklch(88% 0.02 80);
-  color: oklch(30% 0.02 260); background: transparent;
+  border-radius: 0.5rem; border-color: oklch(88% 0.02 290);
+  color: oklch(30% 0.02 290); background: transparent;
   letter-spacing: 0.02em;
 }
 .player-controls .el-button:hover {
-  border-color: oklch(55% 0.13 45); color: oklch(55% 0.13 45);
+  border-color: oklch(55% 0.18 290); color: oklch(55% 0.18 290);
 }
 .player-controls .el-button--primary {
-  background: oklch(55% 0.13 45); border-color: oklch(55% 0.13 45);
-  color: oklch(99% 0.01 80);
+  background: oklch(55% 0.18 290); border-color: oklch(55% 0.18 290);
+  color: oklch(99% 0.01 290);
 }
 .player-controls .el-button--primary:hover {
-  background: oklch(48% 0.13 45); border-color: oklch(48% 0.13 45);
-  color: oklch(99% 0.01 80);
+  background: oklch(48% 0.18 290); border-color: oklch(48% 0.18 290);
+  color: oklch(99% 0.01 290);
 }
 
 /* ─── 速度控制 ─── */
 .speed-control {
   display: flex; align-items: center; gap: 10px;
   margin-bottom: 16px; padding-top: 10px;
-  border-top: 1px solid oklch(90% 0.008 80);
+  border-top: 1px solid oklch(90% 0.008 290);
 }
 .speed-label {
   font-family: 'Noto Sans SC', sans-serif;
-  font-weight: 500; color: oklch(55% 0.02 260);
+  font-weight: 500; color: oklch(55% 0.02 290);
   font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.06em;
   flex-shrink: 0; padding-top: 6px;
 }
 .speed-slider-wrap { flex: 1; min-width: 0; }
-.speed-slider-wrap :deep(.el-slider__runway) { background: oklch(88% 0.01 80); border-radius: 2px; }
+.speed-slider-wrap :deep(.el-slider__runway) { background: oklch(88% 0.01 290); border-radius: 2px; }
 .speed-slider-wrap :deep(.el-slider__bar) {
-  background: linear-gradient(90deg, oklch(65% 0.11 45), oklch(55% 0.13 45));
+  background: linear-gradient(90deg, oklch(65% 0.14 290), oklch(55% 0.18 290));
   border-radius: 2px;
 }
 .speed-slider-wrap :deep(.el-slider__button) {
-  width: 14px; height: 14px; background: oklch(99% 0.01 80);
-  border: 2px solid oklch(55% 0.13 45);
+  width: 14px; height: 14px; background: oklch(99% 0.01 290);
+  border: 2px solid oklch(55% 0.18 290);
   border-radius: 50%;
-  box-shadow: 0 0 0 3px oklch(55% 0.13 45 / 0.15);
+  box-shadow: 0 0 0 3px oklch(55% 0.18 290 / 0.15);
 }
-.speed-slider-wrap :deep(.el-slider__stop) { background-color: oklch(65% 0.11 45); }
+.speed-slider-wrap :deep(.el-slider__stop) { background-color: oklch(65% 0.14 290); }
 .speed-slider-wrap :deep(.el-slider__marks-text) {
-  font-size: 11px; color: oklch(55% 0.02 260); font-weight: 500;
+  font-size: 11px; color: oklch(55% 0.02 290); font-weight: 500;
 }
 .speed-slider-wrap :deep(.el-slider__marks-text-active) {
-  color: oklch(55% 0.13 45); font-weight: 700;
+  color: oklch(55% 0.18 290); font-weight: 700;
 }
 
 /* ─── 途经点列表 ─── */
@@ -1154,22 +1154,22 @@ onUnmounted(() => {
 }
 .stops-header-left { display: flex; align-items: center; gap: 8px; }
 .stops-title {
-  font-size: 0.625rem; font-weight: 600; color: oklch(55% 0.02 260);
+  font-size: 0.625rem; font-weight: 600; color: oklch(55% 0.02 290);
   text-transform: uppercase; letter-spacing: 0.1em;
 }
 .stops-count {
-  font-size: 0.625rem; font-weight: 600; color: oklch(65% 0.02 260);
-  background: oklch(93% 0.008 80);
+  font-size: 0.625rem; font-weight: 600; color: oklch(65% 0.02 290);
+  background: oklch(93% 0.008 290);
   padding: 2px 8px; border-radius: 20px;
-  border: 1px solid oklch(88% 0.01 80);
+  border: 1px solid oklch(88% 0.01 290);
 }
 
 .stops-timeline { display: flex; flex-direction: column; }
 .stop-row { display: flex; gap: 12px; transition: opacity 0.15s ease; }
 .stop-row.dragging { opacity: 0.3; }
 .stop-row.drag-over .stop-content {
-  border-color: oklch(65% 0.11 45);
-  background: oklch(65% 0.11 45 / 0.04);
+  border-color: oklch(65% 0.11 290);
+  background: oklch(65% 0.11 290 / 0.04);
 }
 
 .stop-timeline {
@@ -1178,22 +1178,22 @@ onUnmounted(() => {
 }
 .timeline-dot {
   width: 10px; height: 10px; border-radius: 50%;
-  background: oklch(88% 0.01 80);
-  border: 2px solid oklch(98% 0.005 80);
+  background: oklch(88% 0.01 290);
+  border: 2px solid oklch(98% 0.005 290);
   flex-shrink: 0; transition: all 0.2s ease; z-index: 1;
 }
 .timeline-dot.active {
   width: 12px; height: 12px;
-  background: oklch(55% 0.13 45);
-  box-shadow: 0 0 0 3px oklch(55% 0.13 45 / 0.15);
+  background: oklch(55% 0.18 290);
+  box-shadow: 0 0 0 3px oklch(55% 0.18 290 / 0.15);
 }
-.timeline-dot.visited { background: oklch(78% 0.02 260); }
+.timeline-dot.visited { background: oklch(78% 0.02 290); }
 .timeline-line {
   width: 2px; flex: 1; min-height: 28px;
-  background: oklch(88% 0.01 80);
+  background: oklch(88% 0.01 290);
   margin: 4px 0; border-radius: 1px; transition: background 0.2s ease;
 }
-.timeline-line.visited { background: oklch(78% 0.02 260); }
+.timeline-line.visited { background: oklch(78% 0.02 290); }
 
 .stop-content {
   flex: 1; display: flex; align-items: center; gap: 8px;
@@ -1202,53 +1202,52 @@ onUnmounted(() => {
   transition: all 0.15s ease; margin-bottom: 8px; background: transparent;
 }
 .stop-content:hover {
-  background: oklch(97% 0.005 80);
-  border-color: oklch(90% 0.01 80);
+  background: oklch(97% 0.005 290);
+  border-color: oklch(90% 0.01 290);
 }
 .stop-content.visited { opacity: 0.45; }
 .stop-content.current {
-  background: oklch(65% 0.11 45 / 0.06);
-  border-color: oklch(75% 0.05 45 / 0.2);
+  background: oklch(65% 0.11 290 / 0.06);
+  border-color: oklch(75% 0.05 290 / 0.2);
 }
 
 .stop-main { flex: 1; min-width: 0; }
 .stop-name {
   font-family: 'Noto Sans SC', sans-serif;
   font-size: 0.8125rem; font-weight: 600;
-  color: oklch(25% 0.02 260);
+  color: oklch(25% 0.02 290);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .stop-emoji { font-size: 14px; flex-shrink: 0; }
 .stop-meta { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
 .stop-type {
-  font-size: 0.625rem; color: oklch(55% 0.02 260);
+  font-size: 0.625rem; color: oklch(55% 0.02 290);
   text-transform: uppercase; letter-spacing: 0.04em;
 }
-.stop-desc { font-size: 0.625rem; color: oklch(65% 0.02 260); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stop-desc { font-size: 0.625rem; color: oklch(65% 0.02 290); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .stop-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s ease; }
 .stop-content:hover .stop-actions { opacity: 1; }
 .action-btn {
   width: 26px; height: 26px; border: none; background: transparent;
   border-radius: 6px; display: flex; align-items: center; justify-content: center;
-  cursor: pointer; color: oklch(65% 0.02 260);
+  cursor: pointer; color: oklch(65% 0.02 290);
   transition: all 0.15s ease;
 }
-.action-btn:hover { color: oklch(55% 0.13 45); }
 
 .travel-toggle {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 4px 8px;
-  background: oklch(97% 0.005 80);
-  border: 1px solid oklch(88% 0.01 80);
+  background: oklch(97% 0.005 290);
+  border: 1px solid oklch(88% 0.01 290);
   border-radius: 0.5rem; cursor: pointer;
   transition: all 0.15s ease; white-space: nowrap; flex-shrink: 0;
 }
 .travel-toggle:hover {
-  background: oklch(93% 0.008 80); border-color: oklch(78% 0.02 80);
+  background: oklch(93% 0.008 290); border-color: oklch(78% 0.02 290);
 }
 .travel-icon { font-size: 12px; }
-.travel-text { font-size: 0.6875rem; font-weight: 500; color: oklch(30% 0.02 260); }
+.travel-text { font-size: 0.6875rem; font-weight: 500; color: oklch(30% 0.02 290); }
 
 /* ─── 空状态 ─── */
 .stops-empty {
@@ -1261,8 +1260,8 @@ onUnmounted(() => {
 }
 .empty-dot {
   position: absolute; width: 12px; height: 12px; border-radius: 50%;
-  background: oklch(72% 0.12 65 / 0.25);
-  border: 2px solid oklch(72% 0.12 65 / 0.4);
+  background: oklch(72% 0.12 290 / 0.25);
+  border: 2px solid oklch(72% 0.12 290 / 0.4);
 }
 .dot-1 { left: 20px; top: 50%; transform: translateY(-50%); animation: float-dot 3s ease-in-out infinite; }
 .dot-2 { left: 50%; top: 50%; transform: translate(-50%, -50%); animation: float-dot-center 3s ease-in-out infinite 0.4s; }
@@ -1277,26 +1276,26 @@ onUnmounted(() => {
 }
 .empty-dash-line {
   position: absolute; top: 50%; left: 32px; right: 32px; height: 0;
-  border-top: 2px dashed oklch(72% 0.12 65 / 0.3);
+  border-top: 2px dashed oklch(72% 0.12 290 / 0.3);
   transform: translateY(-50%);
 }
 .empty-content { text-align: center; margin-bottom: 44px; }
 .empty-badge {
   display: inline-block; font-size: 0.625rem; font-weight: 600;
   letter-spacing: 0.12em; text-transform: uppercase;
-  color: oklch(55% 0.13 45);
-  background: oklch(55% 0.13 45 / 0.08);
+  color: oklch(55% 0.18 290);
+  background: oklch(55% 0.18 290 / 0.08);
   padding: 4px 10px; border-radius: 20px; margin-bottom: 12px;
-  border: 1px solid oklch(55% 0.13 45 / 0.15);
+  border: 1px solid oklch(55% 0.18 290 / 0.15);
 }
 .empty-title {
   font-family: 'Noto Serif SC', serif;
   font-size: 0.9375rem; font-weight: 600;
-  color: oklch(25% 0.02 260); margin: 0 0 8px 0;
+  color: oklch(25% 0.02 290); margin: 0 0 8px 0;
 }
 .empty-hint {
   font-family: 'Noto Sans SC', sans-serif;
-  font-size: 0.75rem; color: oklch(55% 0.02 260);
+  font-size: 0.75rem; color: oklch(55% 0.02 290);
   margin: 0; line-height: 1.6; max-width: 200px;
 }
 .add-in-empty :deep(.add-point-btn) {
@@ -1309,14 +1308,14 @@ onUnmounted(() => {
 .form-row { display: flex; flex-direction: column; gap: 6px; }
 .form-row label {
   font-family: 'Noto Sans SC', sans-serif;
-  font-size: 0.75rem; color: oklch(40% 0.02 260); font-weight: 500;
+  font-size: 0.75rem; color: oklch(40% 0.02 290); font-weight: 500;
 }
 .coords {
-  font-size: 0.75rem; color: oklch(55% 0.02 260);
+  font-size: 0.75rem; color: oklch(55% 0.02 290);
   font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  padding: 8px 12px; background: oklch(97% 0.005 80);
+  padding: 8px 12px; background: oklch(97% 0.005 290);
   border-radius: 0.375rem; display: block;
-  border: 1px solid oklch(90% 0.008 80);
+  border: 1px solid oklch(90% 0.008 290);
 }
 
 /* ─── 移动中的点 ─── */
@@ -1325,13 +1324,13 @@ onUnmounted(() => {
 .dot-ring {
   position: absolute; left: 50%; top: 50%; width: 20px; height: 20px;
   transform: translate(-50%, -50%); border-radius: 50%;
-  border: 2px solid oklch(55% 0.13 45 / 0.4);
+  border: 2px solid oklch(55% 0.18 290 / 0.4);
   animation: dot-ping 1.5s ease-out infinite;
 }
 .dot-core {
   position: absolute; left: 50%; top: 50%; width: 8px; height: 8px;
   transform: translate(-50%, -50%); border-radius: 50%;
-  background: oklch(55% 0.13 45);
+  background: oklch(55% 0.18 290);
 }
 @keyframes dot-ping {
   0% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
@@ -1340,9 +1339,9 @@ onUnmounted(() => {
 
 /* ─── 覆盖全局 label-tag 样式 ─── */
 :deep(.label-tag) {
-  background: oklch(55% 0.13 45) !important;
-  color: oklch(99% 0.01 80) !important;
-  box-shadow: 0 2px 10px oklch(45% 0.1 45 / 0.25) !important;
+  background: oklch(55% 0.18 290) !important;
+  color: oklch(99% 0.01 290) !important;
+  box-shadow: 0 2px 10px oklch(45% 0.12 290 / 0.25) !important;
   text-shadow: none !important;
 }
 

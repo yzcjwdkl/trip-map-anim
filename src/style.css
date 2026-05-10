@@ -24,35 +24,35 @@ body {
 
 /* 地图标签样式 */
 .label-tag {
-  background: oklch(55% 0.13 45);
-  color: oklch(99% 0.01 80);
+  background: oklch(60% 0.15 290);
+  color: oklch(99% 0.01 290);
   padding: 5px 12px;
   border-radius: 18px;
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
-  box-shadow: 0 2px 10px oklch(45% 0.1 45 / 0.25);
+  box-shadow: 0 2px 10px oklch(50% 0.12 290 / 0.25);
 }
 
 /* ==================== el-button 样式重写 ==================== */
-/* 主要按钮：陶土色 + 悬浮上浮 */
+/* 主要按钮：紫罗兰色 + 悬浮上浮 */
 .el-button--primary {
-  background: oklch(55% 0.13 45) !important;
+  background: oklch(60% 0.15 290) !important;
   border: none !important;
-  color: oklch(99% 0.01 80) !important;
+  color: oklch(99% 0.01 290) !important;
   font-weight: 600;
   letter-spacing: 0.01em;
-  box-shadow: 0 2px 8px oklch(45% 0.1 45 / 0.3);
+  box-shadow: 0 2px 8px oklch(50% 0.12 290 / 0.3);
   transition: transform 150ms ease, box-shadow 150ms ease;
 }
 .el-button--primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px oklch(45% 0.1 45 / 0.35) !important;
-  background: oklch(48% 0.14 45) !important;
+  box-shadow: 0 4px 16px oklch(50% 0.12 290 / 0.35) !important;
+  background: oklch(55% 0.14 290) !important;
 }
 .el-button--primary:active {
   transform: translateY(0);
-  box-shadow: 0 1px 4px oklch(45% 0.1 45 / 0.25) !important;
+  box-shadow: 0 1px 4px oklch(50% 0.12 290 / 0.25) !important;
 }
 .el-button--primary.is-disabled {
   opacity: 0.45;
@@ -61,11 +61,11 @@ body {
   transform: none !important;
 }
 
-/* 危险按钮：深朱红色系 */
+/* 危险按钮：深红色系 */
 .el-button--danger {
   background: oklch(55% 0.18 25) !important;
   border: none !important;
-  color: oklch(99% 0.01 80) !important;
+  color: oklch(99% 0.01 25) !important;
   font-weight: 600;
   box-shadow: 0 2px 8px oklch(45% 0.15 25 / 0.25);
   transition: transform 150ms ease, box-shadow 150ms ease;
@@ -79,27 +79,27 @@ body {
   transform: translateY(0);
 }
 
-/* 次要/默认按钮：暖灰底 */
+/* 次要/默认按钮：淡紫底 */
 .el-button--default {
-  background: oklch(96% 0.005 80) !important;
-  border: 1px solid oklch(88% 0.01 80) !important;
-  color: oklch(45% 0.02 260) !important;
+  background: oklch(96% 0.005 290) !important;
+  border: 1px solid oklch(88% 0.01 290) !important;
+  color: oklch(45% 0.02 290) !important;
   font-weight: 500;
   transition: all 150ms ease;
 }
 .el-button--default:hover {
-  background: oklch(92% 0.008 80) !important;
-  border-color: oklch(78% 0.02 80) !important;
-  color: oklch(25% 0.02 260) !important;
+  background: oklch(92% 0.008 290) !important;
+  border-color: oklch(78% 0.02 290) !important;
+  color: oklch(25% 0.02 290) !important;
 }
 
 /* 链接按钮 */
 .el-button--text {
-  color: oklch(55% 0.13 45) !important;
+  color: oklch(60% 0.15 290) !important;
   font-weight: 500;
 }
 .el-button--text:hover {
-  color: oklch(45% 0.14 45) !important;
+  color: oklch(50% 0.15 290) !important;
 }
 
 /* 尺寸 */
