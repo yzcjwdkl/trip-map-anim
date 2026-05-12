@@ -33,7 +33,9 @@ export function safeSetPath(polyline, path) {
   polyline.setPath(path)
 }
 
-// 改后（用相对路径，自动适配当前页面地址）
-export const FLY_SVG_CONTENT = `<div style="width:32px;height:32px;background:url('../assets/fj.png') center/contain no-repeat;"></div>`;
-export const CAR_SVG_CONTENT = `<div style="width:32px;height:32px;background:url('../assets/car.png') center/contain no-repeat;"></div>`;
+import fjPng from '@/assets/fj.png';
+import carPng from '@/assets/car.png';
+
+export const FLY_SVG_CONTENT = `<div style="width:32px;height:32px;background:url('${fjPng}') center/contain no-repeat;"></div>`;
+export const CAR_SVG_CONTENT = `<div style="width:32px;height:32px;background:url('${carPng}') center/contain no-repeat;"></div>`;
 export const INVISIBLE_MARKER_ICON = '<div style="width:12px;height:12px;background:transparent;border-radius:50%;display:inline-block;"></div>'
