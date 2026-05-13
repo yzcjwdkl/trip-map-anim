@@ -1,0 +1,63 @@
+{
+  "version": "1.0",
+  "scope": "global",
+  "agents": [
+    {
+      "id": "planner",
+      "name": "Product-Planner",
+      "identity": ["/Users/lizhengqin/lzq/原桌面/work/trip-map-anim/.openclaw/templates/base-planner.md"],
+      "model": "claude-sonnet-4",
+      "skills": ["markdown-writer", "task-router"],
+      "workspace_access": ["docs/"]
+    },
+    {
+      "id": "architect",
+      "name": "Tech-Architect",
+      "identity": ["/Users/lizhengqin/lzq/原桌面/work/trip-map-anim/.openclaw/templates/base-architect.md"],
+      "model": "claude-sonnet-4",
+      "skills": ["code-reader", "architecture-design"],
+      "workspace_access": ["docs/", "src/"],
+      "approval_required": ["package.json", "vite.config.js"]
+    },
+    {
+      "id": "tdd-guide",
+      "name": "TDD-Guide",
+      "identity": ["/Users/lizhengqin/lzq/原桌面/work/trip-map-anim/.openclaw/templates/base-tdd-guide.md"],
+      "model": "claude-3.5-haiku",
+      "skills": ["test-writer", "contract-design"],
+      "workspace_access": ["tests/", "docs/"]
+    },
+    {
+      "id": "frontend",
+      "name": "Frontend-Dev",
+      "identity": ["/Users/lizhengqin/lzq/原桌面/work/trip-map-anim/.openclaw/templates/base-frontend-dev.md"],
+      "model": "claude-sonnet-4",
+      "skills": ["code-writer"],
+      "workspace_access": ["src/", "public/"],
+      "sandbox": true,
+      "approval_required": ["git-push", "npm-install"]
+    },
+    {
+      "id": "reviewer",
+      "name": "Code-Reviewer",
+      "identity": ["/Users/lizhengqin/lzq/原桌面/work/trip-map-anim/.openclaw/templates/base-code-reviewer.md"],
+      "model": "claude-sonnet-4",
+      "skills": ["code-review", "security-scan"],
+      "workspace_access": ["src/", "tests/"]
+    }
+  ],
+  "routing": {
+    "auto_route": true,
+    "rules": [
+      { "pattern": "需求|PRD|设计|优先级|功能", "target": "planner" },
+      { "pattern": "架构|技术方案|目录|规范|重构|选型", "target": "architect" },
+      { "pattern": "测试|契约|接口|覆盖率|TDD|用例", "target": "tdd-guide" },
+      { "pattern": "开发|代码|组件|页面|实现|修复", "target": "frontend" },
+      { "pattern": "审查|Review|安全|性能|质量|检查", "target": "reviewer" }
+    ]
+  },
+  "defaults": {
+    "session_log": "~/.openclaw/logs/session.log",
+    "shared_memory": "~/.openclaw/memory/global-state.md"
+  }
+}

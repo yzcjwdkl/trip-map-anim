@@ -7,7 +7,12 @@ export default defineConfig({
   plugins: [vue()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),   // ← 添加这一行
+      '@': path.resolve(__dirname, './src'),
     },
+  },
+  test: {
+    environment: 'jsdom',
+    include: ['tests/unit/**/*.test.js'],
+    globals: true,
   },
 })
