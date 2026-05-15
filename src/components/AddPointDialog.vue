@@ -1,9 +1,9 @@
 <template>
   <div class="add-point-wrap" v-bind="$attrs">
-    <!-- 添加点位按钮 -->
-    <el-button class="add-point-btn" type="primary" plain @click="openDialog" :disabled="!mapReady">
-      添加点位
-    </el-button>
+<!--    &lt;!&ndash; 添加点位按钮 &ndash;&gt;-->
+<!--    <el-button class="add-point-btn" type="primary" plain @click="openDialog" :disabled="!mapReady">-->
+<!--      添加点位-->
+<!--    </el-button>-->
 
   <!-- 弹窗 -->
   <el-dialog
@@ -22,12 +22,7 @@
         clearable
         @input="onSearchInput"
         @keyup.enter="onSearchInput"
-      >
-        <template #append>
-          <el-button @click="onSearchInput">搜索</el-button>
-        </template>
-      </el-input>
-
+     />
       <!-- 搜索结果列表 -->
       <div class="results-list" v-if="searchResults.length > 0">
         <div
@@ -227,6 +222,8 @@ function confirmAdd() {
   })
   closeDialog()
 }
+
+defineExpose({ openDialog })
 </script>
 
 <style scoped>

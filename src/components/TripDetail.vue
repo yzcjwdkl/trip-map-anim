@@ -1,8 +1,81 @@
 <template>
   <div class="trip-detail" :class="{ 'is-fullscreen': fullscreen }">
+    <!-- 顶部信息栏 —— Z 型视觉模式布局 -->
+    <div class="top-info-bar" v-show="!fullscreen">
+      <!-- Z 第一横：左上（行程标识）→ 右上（核心操作） -->
+      <div class="z-row z-row-top">
+        <div class="z-start">
+          <button class="ctrl-icon-btn back-btn" @click="emit('back')" title="返回">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+            </svg>
+          </button>
+          <div class="trip-identity">
+            <span class="trip-label">行程</span>
+            <span class="detail-trip-name">{{ trip.name }}</span>
+          </div>
+        </div>
+        <div class="z-end">
+          <span class="count-badge">{{ trip.points.length }} 个地点</span>
+          <div class="player-controls-mini">
+            <button class="ctrl-icon-btn" @click="resetTrip" title="重置">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
+            </button>
+            <button class="ctrl-icon-btn play" :class="{ active: isPlaying }" :disabled="!mapReady" @click="togglePlay" :title="isPlaying ? '暂停' : '播放'">
+              <svg v-if="!isPlaying" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              <svg v-else width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+              </svg>
+            </button>
+            <button class="ctrl-icon-btn" @click="nextStep" title="下一步">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Z 对角线：进度条作为视线引导 -->
+      <div class="z-diagonal">
+        <div class="progress-track">
+          <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+        </div>
+      </div>
+
+      <!-- Z 第二横：左下（进度状态）→ 右下（点位流向） -->
+      <div class="z-row z-row-bottom">
+        <div class="z-start">
+          <div class="progress-status">
+            <span class="progress-fraction">{{ currentIndex + 1 }}<span class="fraction-divider">/</span>{{ trip.points.length }}</span>
+            <span class="progress-label">已游览</span>
+          </div>
+        </div>
+        <div class="z-flow">
+          <span v-if="prevPoint" class="nav-point prev">{{ prevPoint.name }}</span>
+          <span v-else class="nav-point origin">起点</span>
+          <span class="nav-arrow">→</span>
+          <span v-if="currentPoint" class="nav-point current">{{ currentPoint.name }}</span>
+          <span v-else class="nav-point placeholder">—</span>
+          <span class="nav-arrow">→</span>
+          <span v-if="nextPoint" class="nav-point next">{{ nextPoint.name }}</span>
+          <span v-else class="nav-point terminus">终点</span>
+        </div>
+        <div class="z-end">
+          <span class="percent-value" :style="{ '--p': progressPercent + '%' }">{{ Math.round(progressPercent) }}%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 地图容器 -->
     <div class="map-container" :class="{ 'is-fullscreen': fullscreen }">
       <el-button class="fullscreen-btn" link @click="emit('toggle-fullscreen')" title="全屏">⛶</el-button>
       <div id="amap-container" ref="mapContainer"></div>
+      <div class="sky-mask"></div>
 
       <!-- 地图加载遮罩 -->
       <div class="map-loading" ref="mapLoadingRef" v-show="!mapReady">
@@ -36,47 +109,105 @@
       </div>
     </div>
 
-    <div class="control-panel" v-show="!fullscreen">
-      <div class="detail-back-bar">
-        <span class="detail-trip-name">{{ trip.name }}</span>
-        <el-button link @click="emit('back')">← 返回</el-button>
+    <!-- 底部工具栏（独立组件） -->
+    <BottomToolbar
+      v-show="!fullscreen"
+      @add-point="openAddPointDialog"
+      @toggle-list="showPointList = !showPointList; showSettings = false"
+      @toggle-settings="showSettings = !showSettings; showPointList = false"
+    />
+
+    <!-- 点位列表面板 -->
+    <PointListPanel
+      v-model:visible="showPointList"
+      @close="showPointList = false"
+    >
+      <!-- 批量操作栏 -->
+      <div class="stops-header">
+        <div class="stops-header-left">
+          <span class="stops-title">地点</span>
+          <span class="stops-count">{{ trip.points.length }}</span>
+        </div>
+        <div class="stops-header-right">
+          <el-button size="small" v-if="!showBatchMode && !detailEmpty" @click="enterBatchMode">☰ 批量</el-button>
+          <el-button size="small" v-if="showBatchMode && selectedCount > 0" @click="toggleSelectAll">{{ allSelected ? '取消全选' : '全选' }}</el-button>
+          <el-button size="small" v-if="showBatchMode" @click="exitBatchMode">取消</el-button>
+          <el-button type="danger" size="small" v-if="showBatchBar" @click="batchDeletePoints">🗑 删除 ({{ selectedCount }})</el-button>
+        </div>
       </div>
 
-      <div class="status-bar" v-if="currentPoint">
-        <div class="status-main">
-          <div class="status-icon">{{ markerIcons[currentPoint.type] || '📍' }}</div>
-          <div class="status-info">
-            <div class="status-name">{{ currentPoint.name }}</div>
-            <div class="status-desc">{{ currentPoint.description }}</div>
+      <!-- 点位时间线 -->
+      <div class="stops-timeline" v-if="!detailEmpty">
+        <div
+          v-for="(point, index) in trip.points"
+          :key="point.id"
+          class="stop-row panel-item"
+          :draggable="true"
+          @dragstart="onDragStart(index, $event)"
+          @dragover.prevent="onDragOver(index)"
+          @drop="onDrop(index)"
+          @dragend="onDragEnd"
+          :class="{ 'drag-over': dragOverIndex === index, 'dragging': dragIndex === index }"
+        >
+          <div class="stop-timeline">
+            <div class="timeline-dot" :class="{ active: index === currentIndex, visited: index < currentIndex }"></div>
+            <div v-if="index < trip.points.length - 1" class="timeline-line" :class="{ visited: index < currentIndex }"></div>
+          </div>
+          <div class="stop-content" :class="{ visited: index < currentIndex, current: index === currentIndex }" @click="jumpTo(index)">
+            <div class="stop-main">
+              <div class="stop-name-row">
+                <el-checkbox
+                  v-if="showBatchMode"
+                  class="stop-checkbox"
+                  :model-value="selectedIndexes.has(index)"
+                  @click.stop
+                  @change="toggleSelect(index)"
+                />
+                <span class="stop-name">{{ point.name }}</span>
+              </div>
+              <div class="stop-meta">
+                <span class="stop-type">{{ getTypeName(point.type) }}</span>
+                <span v-if="point.description" class="stop-desc">{{ point.description }}</span>
+              </div>
+            </div>
+            <div class="stop-actions">
+              <el-button class="action-btn" link @click.stop="openEditDialog(index, point)" title="编辑">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </el-button>
+              <el-button class="action-btn" link @click.stop="deletePoint(index)" title="删除">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </el-button>
+            </div>
+            <div v-if="index < trip.points.length - 1" class="travel-toggle" @click.stop="toggleSegmentTravelType(index)">
+              <span class="travel-icon">{{ point.travelTypeToHere === 'drive' ? '🚗' : '✈️' }}</span>
+            </div>
           </div>
         </div>
-        <div class="status-count">
-          <span class="count-num">{{ trip.points.length }}</span>
-          <span class="count-unit">个地点</span>
-        </div>
-        <AddPointDialog @add="onAddPoint" :map-ready="mapReady" class="add-in-status" />
       </div>
 
-      <div class="progress-section">
-        <div class="progress-bar">
-          <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+      <!-- 空状态 -->
+      <div v-if="detailEmpty" class="stops-empty">
+        <div class="empty-illustration">
+          <div class="empty-dot dot-1"></div>
+          <div class="empty-dot dot-2"></div>
+          <div class="empty-dot dot-3"></div>
+          <div class="empty-dash-line"></div>
         </div>
-        <div class="progress-text">
-          <span>当前进度</span>
-          <span>{{ currentIndex + 1 }} / {{ trip.points.length }}</span>
-        </div>
-      </div>
-
-      <div class="controls-row">
-        <div class="player-controls">
-          <el-button size="small" @click="resetTrip">重置</el-button>
-          <el-button type="primary" size="small" :disabled="!mapReady" @click="togglePlay">{{ isPlaying ? '暂停' : '播放' }}</el-button>
-          <el-button size="small" @click="nextStep">下一步</el-button>
+        <div class="empty-content">
+          <div class="empty-badge">地点列表</div>
+          <h3 class="empty-title">还没有添加地点</h3>
+          <p class="empty-hint">在地图上点击或搜索来添加你的旅行目的地</p>
         </div>
       </div>
+    </PointListPanel>
 
-      <div class="speed-control">
-        <span class="speed-label">速度</span>
+    <!-- 设置面板 -->
+    <SettingsPanel
+      v-model:visible="showSettings"
+      @close="showSettings = false"
+    >
+      <div class="setting-item">
+        <span class="setting-label">播放速度</span>
         <div class="speed-slider-wrap">
           <el-slider
             v-model="speedIndex"
@@ -87,87 +218,10 @@
           />
         </div>
       </div>
+    </SettingsPanel>
 
-      <div class="stops-list">
-        <div class="stops-header">
-          <div class="stops-header-left">
-            <span class="stops-title">地点</span>
-            <span class="stops-count">{{ trip.points.length }}</span>
-          </div>
-          <div class="stops-header-right">
-            <el-button size="small" v-if="!showBatchMode && !detailEmpty" @click="enterBatchMode">☰ 批量</el-button>
-            <el-button size="small" v-if="showBatchMode && selectedCount > 0" @click="toggleSelectAll">{{ allSelected ? '取消全选' : '全选' }}</el-button>
-            <el-button size="small" v-if="showBatchMode" @click="exitBatchMode">取消</el-button>
-            <el-button type="danger" size="small" v-if="showBatchBar" @click="batchDeletePoints">🗑 删除 ({{ selectedCount }})</el-button>
-          </div>
-        </div>
-
-        <div class="stops-timeline" v-if="!detailEmpty">
-          <div
-            v-for="(point, index) in trip.points"
-            :key="point.id"
-            class="stop-row"
-            :draggable="true"
-            @dragstart="onDragStart(index, $event)"
-            @dragover.prevent="onDragOver(index)"
-            @drop="onDrop(index)"
-            @dragend="onDragEnd"
-            :class="{ 'drag-over': dragOverIndex === index, 'dragging': dragIndex === index }"
-          >
-            <div class="stop-timeline">
-              <div class="timeline-dot" :class="{ active: index === currentIndex, visited: index < currentIndex }"></div>
-              <div v-if="index < trip.points.length - 1" class="timeline-line" :class="{ visited: index < currentIndex }"></div>
-            </div>
-            <div class="stop-content" :class="{ visited: index < currentIndex, current: index === currentIndex }" @click="jumpTo(index)">
-              <div class="stop-main">
-                <div class="stop-name-row">
-                  <el-checkbox
-                    v-if="showBatchMode"
-                    class="stop-checkbox"
-                    :model-value="selectedIndexes.has(index)"
-                    @click.stop
-                    @change="toggleSelect(index)"
-                  />
-                  <span class="stop-name">{{ point.name }}</span>
-                  <span class="stop-emoji">{{ markerIcons[point.type] || '📍' }}</span>
-                </div>
-                <div class="stop-meta">
-                  <span class="stop-type">{{ getTypeName(point.type) }}</span>
-                  <span v-if="point.description" class="stop-desc">{{ point.description }}</span>
-                </div>
-              </div>
-              <div class="stop-actions">
-                <el-button class="action-btn" link @click.stop="openEditDialog(index, point)" title="编辑">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                </el-button>
-                <el-button class="action-btn" link @click.stop="deletePoint(index)" title="删除">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                </el-button>
-              </div>
-              <div v-if="index < trip.points.length - 1" class="travel-toggle" @click.stop="toggleSegmentTravelType(index)">
-                <span class="travel-icon">{{ point.travelTypeToHere === 'drive' ? '🚗' : '✈️' }}</span>
-                <span class="travel-text">{{ point.travelTypeToHere === 'drive' ? '驾车' : '飞机' }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="detailEmpty" class="stops-empty">
-          <div class="empty-illustration">
-            <div class="empty-dot dot-1"></div>
-            <div class="empty-dot dot-2"></div>
-            <div class="empty-dot dot-3"></div>
-            <div class="empty-dash-line"></div>
-          </div>
-          <div class="empty-content">
-            <div class="empty-badge">地点列表</div>
-            <h3 class="empty-title">还没有添加地点</h3>
-            <p class="empty-hint">在地图上点击或搜索来添加你的旅行目的地</p>
-          </div>
-          <AddPointDialog @add="onAddPoint" :map-ready="mapReady" class="add-in-empty" />
-        </div>
-      </div>
-    </div>
+    <!-- 添加点位弹窗 -->
+    <AddPointDialog ref="addPointDialogRef" @add="onAddPoint" :map-ready="mapReady" />
 
     <!-- 编辑点位弹窗 -->
     <el-dialog
@@ -232,6 +286,15 @@ import {
   createDotMarker, createLabelMarker, clearMarkers,
   safeSetPath, FLY_SVG_CONTENT, CAR_SVG_CONTENT, INVISIBLE_MARKER_ICON
 } from '../utils/mapMarkers.js'
+import {
+  default as BottomToolbar,
+} from './business/trip-detail/BottomToolbar.vue'
+import {
+  default as PointListPanel,
+} from './business/trip-detail/PointListPanel.vue'
+import {
+  default as SettingsPanel,
+} from './business/trip-detail/SettingsPanel.vue'
 
 const props = defineProps({
   fullscreen: Boolean,
@@ -239,11 +302,39 @@ const props = defineProps({
 })
 const emit = defineEmits(['toggle-fullscreen', 'back'])
 
+// ── Device / perf detection ──────────────────────────────────
+const isMobile = window.innerWidth < 768 || navigator.maxTouchPoints > 0
+const isLowPerf = (() => {
+  try { return devicePixelRatio > 2 || !window.WebGLRenderingContext } catch (_) { return true }
+})()
+const GSAP_STAGGER  = isLowPerf ? 0.18 : 0.07
+const MAP_PITCH     = isMobile ? 0 : 45
+
+let mainCtx = null
+
 const { currentDetailTrip, detailEmpty: storeDetailEmpty, getTypeName, addPointToTrip, deletePointFromTrip, batchDeletePointsFromTrip, updatePointInTrip, movePointInTrip, toggleSegmentTravelType: storeToggleSegmentTravelType } = useTripStore()
 
 // 当前详情页直接操作 props 传入的 trip，但我们需要拿到引用
 const trip = computed(() => currentDetailTrip.value)
 const detailEmpty = computed(() => storeDetailEmpty.value)
+
+// ── 新组件状态（props 驱动）───────────────────────────────────
+const showPointList = ref(false)
+const showSettings  = ref(false)
+
+function openAddPointDialog() {
+  addPointDialogRef.value?.openDialog?.()
+}
+
+// ── 保留地图相关状态 ──────────────────────────────────────────
+const prevPoint = computed(() => {
+  if (!trip.value?.points?.length) return null
+  return currentIndex.value > 0 ? trip.value.points[currentIndex.value - 1] : null
+})
+const nextPoint = computed(() => {
+  if (!trip.value?.points?.length) return null
+  return currentIndex.value < trip.value.points.length - 1 ? trip.value.points[currentIndex.value + 1] : null
+})
 
 // ==================== 地图实例 ====================
 let map = null
@@ -308,6 +399,8 @@ const speeds = [0.5, 1, 2, 4]
 const speedIndex = ref((speeds.indexOf(currentSpeed.value) / (speeds.length - 1)) * 100)
 const speedMarks = ref({ 0: '0.5x', 33.33: '1x', 66.67: '2x', 100: '4x' })
 let animTimer = null
+
+const addPointDialogRef = ref(null)
 
 const currentPoint = computed(() => trip.value?.points ? trip.value.points[currentIndex.value] : null)
 const progressPercent = computed(() => trip.value?.points && trip.value.points.length ? (currentIndex.value / trip.value.points.length) * 100 : 0)
@@ -785,6 +878,11 @@ window._AMapSecurityConfig = {
 }
 
 onMounted(async () => {
+  // All GSAP tweens live in child components — child ctx.revert() handles cleanup.
+  // TripDetail onUnmounted just calls mainCtx?.revert() which kills
+  // the loading animation started here.
+  mainCtx = gsap.context(() => {}, document.body)
+
   try {
     AMap = await AMapLoader.load({
       key: import.meta.env.VITE_AMAP_KEY,
@@ -806,7 +904,7 @@ onMounted(async () => {
 
     const initialCenter = trip.value?.points?.length > 0 ? trip.value.points[0].position : [98.5865, 24.4336]
     map = new AMap.Map('amap-container', {
-      zoom: 14, pitch: 45, center: initialCenter, viewMode: '3D'
+      zoom: 14, pitch: MAP_PITCH, center: initialCenter, viewMode: '3D'
     })
 
     mainPolyline = new AMap.Polyline({ strokeColor: '#D96B1A', strokeWeight: 4, lineJoin: 'round' })
@@ -865,6 +963,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  mainCtx?.revert()
   pausePlay()
   cancelAnim()
   allLabelMarkers.forEach(l => l.off && l.off('click'))
@@ -879,40 +978,64 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* ─── Base layout ─────────────────────────────────── */
 .trip-detail {
   display: flex;
-  gap: 24px;
+  flex-direction: column;
   width: 100%;
   height: calc(100vh - 96px);
   overflow: hidden;
+  position: relative;
 }
-.trip-detail.is-fullscreen {
-  height: 100vh;
-}
+.trip-detail.is-fullscreen { height: 100vh; }
+
+/* ─── Map ─────────────────────────────────────────── */
 .map-container {
   flex: 1;
   min-height: 0;
-  border-radius: 20px;
+  border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04);
   position: relative;
-  border: 1px solid rgba(0,0,0,0.04);
+  box-shadow:
+    0 0 0 1px oklch(86% 0.008 55 / 0.3),
+    0 0 40px 6px oklch(96% 0.005 55),
+    0 0 80px 20px oklch(96% 0.005 55 / 0.6),
+    0 8px 32px oklch(30% 0.01 55 / 0.06),
+    0 2px 8px oklch(30% 0.01 55 / 0.04);
 }
-.map-container.is-fullscreen {
-  border-radius: 0 !important;
-  box-shadow: none !important;
-  border: none !important;
-  min-height: 100vh !important;
-  max-height: 100vh !important;
-  height: 100vh !important;
-  flex: 1 !important;
-  position: relative;
+#amap-container { width: 100%; height: 100%; min-height: 0; position: relative; z-index: 0; }
+.sky-mask {
+  position: absolute; inset: 0; z-index: 2;
+  background: linear-gradient(to bottom, oklch(96% 0.005 55 / 0.7) 0%, transparent 25%);
+  pointer-events: none;
+  border-radius: 18px;
 }
-.map-container.is-fullscreen #amap-container {
-  height: 100vh !important;
+.map-container.is-fullscreen { border-radius: 0 !important; box-shadow: none !important; }
+.map-container.is-fullscreen #amap-container { height: 100vh !important; }
+.map-container.is-fullscreen .sky-mask { display: none; }
+
+/* Fullscreen button */
+.fullscreen-btn {
+  position: absolute;
+  top: 12px; right: 12px;
+  z-index: 20;
+  width: 36px; height: 36px;
+  background: oklch(100% 0 0 / 0.9);
+  border: 1px solid oklch(86% 0.008 55);
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 17px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+.fullscreen-btn:hover {
+  background: oklch(100% 0 0);
+  box-shadow: 0 4px 14px oklch(30% 0.01 55 / 0.1);
+  transform: scale(1.06);
 }
 
-/* ─── 地图加载遮罩 ─── */
+/* Map loading */
 .map-loading {
   position: absolute;
   inset: 0;
@@ -921,438 +1044,734 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
-  background: oklch(98% 0.004 290);
+  gap: 14px;
+  background: oklch(96% 0.005 55);
   pointer-events: none;
 }
-
-.loading-inner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
+.loading-inner { display: flex; align-items: center; gap: 7px; }
 .loading-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: oklch(55% 0.18 290);
-  animation: loadingPulse 1.2s ease-in-out infinite;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: oklch(62% 0.13 25);
+  animation: loadPulse 1.3s ease-in-out infinite;
 }
-
 .loading-dot:nth-child(2) { animation-delay: 0.2s; }
 .loading-dot:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes loadingPulse {
-  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-  40%            { transform: scale(1);   opacity: 1;   }
+@keyframes loadPulse {
+  0%, 80%, 100% { transform: scale(0.55); opacity: 0.35; }
+  40%            { transform: scale(1);   opacity: 1; }
 }
-
 .loading-text {
-  font-family: 'Noto Sans SC', -apple-system, sans-serif;
-  font-size: 0.75rem;
-  color: oklch(60% 0.02 290);
-  letter-spacing: 0.06em;
+  font-size: 0.6875rem; color: oklch(52% 0.01 55);
+  letter-spacing: 0.08em; font-weight: 500;
 }
 
-.ring-overlay {
-  position: absolute;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  pointer-events: none;
-  z-index: 10;
-}
-.fullscreen-btn {
-  position: absolute;
-  top: 12px; right: 12px;
-  z-index: 20;
-  width: 36px; height: 36px;
-  background: rgba(255,255,255,0.9);
-  border: 1px solid rgba(0,0,0,0.08);
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(4px);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-}
-.fullscreen-btn:hover {
-  background: white;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
-  transform: scale(1.05);
-}
-#amap-container { width: 100%; height: 100%; min-height: 0; }
+/* Ring overlay */
+.ring-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 10; }
 
-/* ─── 控制面板 ─── */
+/* Moving dot */
+.moving-dot {
+  position: absolute; left: 0; top: 0;
+  width: 18px; height: 18px; pointer-events: none; z-index: 50; display: none;
+}
+.moving-dot.visible { display: block; }
+.dot-ring {
+  position: absolute; left: 50%; top: 50%;
+  width: 18px; height: 18px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 2px solid oklch(62% 0.13 25 / 0.35);
+  animation: dotRing 1.6s ease-out infinite;
+}
+.dot-core {
+  position: absolute; left: 50%; top: 50%;
+  width: 7px; height: 7px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: oklch(62% 0.13 25);
+}
+@keyframes dotRing {
+  0%   { transform: translate(-50%, -50%) scale(1);    opacity: 0.6; }
+  100% { transform: translate(-50%, -50%) scale(2.8); opacity: 0; }
+}
+
+/* ─── Control Panel ─────────────────────────────────── */
 .control-panel {
-  width: 360px;
+  width: 340px;
   flex-shrink: 0;
-  background: oklch(99.5% 0.003 80);
-  border-radius: 1rem;
-  padding: 20px;
-  border: 1px solid oklch(88% 0.01 80);
-  box-shadow: 0 2px 16px oklch(25% 0.01 80 / 0.04), 0 1px 4px oklch(25% 0.01 80 / 0.03);
-  overflow-x: hidden;
+  background: oklch(100% 0 0);
+  border: 1px solid oklch(88% 0.008 55);
+  border-radius: 18px;
+  padding: 20px 18px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
-/* ─── 顶部返回栏 ─── */
+/* Back bar */
 .detail-back-bar {
   display: flex; align-items: center; justify-content: space-between;
-  gap: 10px; padding: 2px 4px 14px;
-  border-bottom: 1px solid oklch(90% 0.008 80);
-  margin-bottom: 14px;
+  gap: 10px; padding: 0 2px 16px;
+  border-bottom: 1px solid oklch(88% 0.008 55);
+  margin-bottom: 16px;
 }
 .detail-trip-name {
   font-family: 'Noto Serif SC', serif;
-  font-size: 0.9375rem; font-weight: 600;
-  color: oklch(25% 0.02 290); letter-spacing: 0.02em;
+  font-size: 0.9375rem; font-weight: 700;
+  color: oklch(22% 0.012 55); letter-spacing: 0.01em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;
 }
 .detail-back-bar .el-button {
-  font-family: 'Noto Sans SC', sans-serif;
   font-size: 0.75rem; font-weight: 500;
-  color: oklch(55% 0.18 290);
-  letter-spacing: 0.02em;
-  flex-shrink: 0;
+  color: oklch(55% 0.01 55);
+  transition: color 0.15s ease;
 }
-.detail-back-bar .el-button:hover { color: oklch(48% 0.18 290); }
+.detail-back-bar .el-button:hover { color: oklch(30% 0.012 55); }
 
-/* ─── 状态栏（当前点位） ─── */
+/* Status bar */
 .status-bar {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 14px;
-  background: oklch(96% 0.008 290 / 0.5);
-  border: 1px solid oklch(88% 0.02 290);
-  border-radius: 0.75rem;
-  margin-bottom: 16px;
-  transition: all 0.2s ease;
+  border: 1px solid oklch(88% 0.008 55);
+  border-radius: 12px;
+  margin-bottom: 14px;
+  background: oklch(97% 0.005 55);
+  transition: border-color 0.2s ease;
 }
-.status-bar:hover {
-  border-color: oklch(75% 0.06 290);
-  box-shadow: 0 2px 8px oklch(65% 0.06 290 / 0.08);
-}
+.status-bar:hover { border-color: oklch(72% 0.015 55); }
 .status-main { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
 .status-icon {
   font-size: 16px; width: 36px; height: 36px;
   display: flex; align-items: center; justify-content: center;
-  background: oklch(72% 0.12 290);
-  border-radius: 0.6rem; flex-shrink: 0;
+  background: oklch(62% 0.13 25 / 0.1);
+  border-radius: 9px; flex-shrink: 0;
 }
 .status-info { flex: 1; min-width: 0; }
 .status-name {
-  font-family: 'Noto Sans SC', sans-serif;
-  font-weight: 600; font-size: 0.8125rem;
-  color: oklch(25% 0.02 290);
+  font-size: 0.8125rem; font-weight: 600;
+  color: oklch(22% 0.012 55);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .status-desc {
-  font-size: 0.6875rem; color: oklch(55% 0.02 290);
+  font-size: 0.6875rem; color: oklch(52% 0.01 55);
   margin-top: 2px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.status-count {
-  display: flex; flex-direction: column; align-items: flex-end;
-  flex-shrink: 0; margin-right: 6px;
-}
+.status-count { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; }
 .count-num {
-  font-family: 'Noto Sans SC', sans-serif;
+  font-family: 'Noto Serif SC', serif;
   font-size: 1.375rem; font-weight: 700;
-  color: oklch(55% 0.18 290); line-height: 1;
-  letter-spacing: -0.03em;
+  color: oklch(62% 0.13 25); line-height: 1; letter-spacing: -0.03em;
 }
-.count-unit {
-  font-size: 0.625rem; color: oklch(55% 0.02 290);
-  margin-top: 2px; letter-spacing: 0.04em;
-}
+.count-unit { font-size: 0.625rem; color: oklch(52% 0.01 55); margin-top: 2px; }
 .add-in-status { flex-shrink: 0; }
 
-/* ─── 进度条 ─── */
-.progress-section { margin-bottom: 16px; }
+/* Progress section */
+.progress-section { margin-bottom: 14px; }
 .progress-bar {
-  height: 3px; background: oklch(92% 0.01 290);
-  border-radius: 2px; overflow: hidden;
+  height: 4px; background: oklch(88% 0.008 55);
+  border-radius: 2px; overflow: hidden; margin-bottom: 8px;
 }
 .progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, oklch(65% 0.14 290), oklch(55% 0.18 290));
+  height: 100%; background: oklch(62% 0.13 25);
   border-radius: 2px;
-  transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .progress-text {
   display: flex; justify-content: space-between; align-items: center;
-  font-size: 0.6875rem; color: oklch(55% 0.02 290);
-  margin-top: 8px; letter-spacing: 0.03em;
+  font-size: 0.6875rem; color: oklch(52% 0.01 55);
 }
-.progress-text span:last-child {
-  font-weight: 700; color: oklch(55% 0.18 290);
+.progress-text span:last-child { font-weight: 700; color: oklch(62% 0.13 25); }
+
+/* Controls row */
+.controls-row { margin-bottom: 14px; }
+.player-controls { display: flex; align-items: center; gap: 8px; }
+.ctrl-icon-btn {
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  border: 1px solid oklch(88% 0.008 55);
+  background: oklch(97% 0.005 55);
+  color: oklch(40% 0.012 55);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+.ctrl-icon-btn:hover:not(:disabled) {
+  background: oklch(62% 0.13 25);
+  border-color: oklch(62% 0.13 25);
+  color: oklch(99% 0 0);
+}
+.ctrl-icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.ctrl-icon-btn.play {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  background: oklch(62% 0.13 25);
+  border-color: oklch(62% 0.13 25);
+  color: oklch(99% 0 0);
+}
+.ctrl-icon-btn.play:hover:not(:disabled) {
+  background: oklch(54% 0.14 25);
+  transform: scale(1.05);
+}
+.ctrl-icon-btn.play.active {
+  background: oklch(45% 0.1 55);
+  border-color: oklch(45% 0.1 55);
 }
 
-/* ─── 操作按钮行 ─── */
-.controls-row { margin-bottom: 12px; }
-.player-controls { display: flex; gap: 6px; flex-wrap: wrap; }
-.player-controls .el-button {
-  font-family: 'Noto Sans SC', sans-serif;
-  font-size: 0.75rem; font-weight: 500;
-  border-radius: 0.5rem; border-color: oklch(88% 0.02 290);
-  color: oklch(30% 0.02 290); background: transparent;
-  letter-spacing: 0.02em;
-}
-.player-controls .el-button:hover {
-  border-color: oklch(55% 0.18 290); color: oklch(55% 0.18 290);
-}
-.player-controls .el-button--primary {
-  background: oklch(55% 0.18 290); border-color: oklch(55% 0.18 290);
-  color: oklch(99% 0.01 290);
-}
-.player-controls .el-button--primary:hover {
-  background: oklch(48% 0.18 290); border-color: oklch(48% 0.18 290);
-  color: oklch(99% 0.01 290);
-}
-
-/* ─── 速度控制 ─── */
+/* Speed control */
 .speed-control {
   display: flex; align-items: center; gap: 10px;
-  margin-bottom: 16px; padding-top: 10px;
-  border-top: 1px solid oklch(90% 0.008 290);
+  margin-bottom: 14px; padding-top: 12px;
+  border-top: 1px solid oklch(88% 0.008 55);
 }
 .speed-label {
-  font-family: 'Noto Sans SC', sans-serif;
-  font-weight: 500; color: oklch(55% 0.02 290);
-  font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.06em;
-  flex-shrink: 0; padding-top: 6px;
+  font-size: 0.625rem; font-weight: 600;
+  color: oklch(52% 0.01 55);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  flex-shrink: 0;
 }
 .speed-slider-wrap { flex: 1; min-width: 0; }
-.speed-slider-wrap :deep(.el-slider__runway) { background: oklch(88% 0.01 290); border-radius: 2px; }
-.speed-slider-wrap :deep(.el-slider__bar) {
-  background: linear-gradient(90deg, oklch(65% 0.14 290), oklch(55% 0.18 290));
-  border-radius: 2px;
-}
+.speed-slider-wrap :deep(.el-slider__runway) { background: oklch(88% 0.008 55); border-radius: 2px; }
+.speed-slider-wrap :deep(.el-slider__bar) { background: oklch(62% 0.13 25); border-radius: 2px; }
 .speed-slider-wrap :deep(.el-slider__button) {
-  width: 14px; height: 14px; background: oklch(99% 0.01 290);
-  border: 2px solid oklch(55% 0.18 290);
+  width: 13px; height: 13px;
+  background: oklch(100% 0 0);
+  border: 2px solid oklch(62% 0.13 25);
   border-radius: 50%;
-  box-shadow: 0 0 0 3px oklch(55% 0.18 290 / 0.15);
+  box-shadow: 0 0 0 3px oklch(62% 0.13 25 / 0.14);
 }
-.speed-slider-wrap :deep(.el-slider__stop) { background-color: oklch(65% 0.14 290); }
-.speed-slider-wrap :deep(.el-slider__marks-text) {
-  font-size: 11px; color: oklch(55% 0.02 290); font-weight: 500;
-}
-.speed-slider-wrap :deep(.el-slider__marks-text-active) {
-  color: oklch(55% 0.18 290); font-weight: 700;
-}
+.speed-slider-wrap :deep(.el-slider__stop) { background-color: oklch(72% 0.08 25); }
+.speed-slider-wrap :deep(.el-slider__marks-text) { font-size: 11px; color: oklch(52% 0.01 55); font-weight: 500; }
+.speed-slider-wrap :deep(.el-slider__marks-text-active) { color: oklch(62% 0.13 25); font-weight: 700; }
 
-/* ─── 途经点列表 ─── */
+/* ─── Stops list ──────────────────────────────────── */
 .stops-list { flex: 1; overflow-y: auto; padding-right: 2px; min-height: 0; }
 .stops-header {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 0 4px; margin-bottom: 12px;
+  padding: 0 2px; margin-bottom: 14px;
 }
 .stops-header-left { display: flex; align-items: center; gap: 8px; }
 .stops-title {
-  font-size: 0.625rem; font-weight: 600; color: oklch(55% 0.02 290);
+  font-size: 0.625rem; font-weight: 600; color: oklch(40% 0.012 55);
   text-transform: uppercase; letter-spacing: 0.1em;
 }
 .stops-count {
-  font-size: 0.625rem; font-weight: 600; color: oklch(65% 0.02 290);
-  background: oklch(93% 0.008 290);
+  font-size: 0.625rem; font-weight: 600; color: oklch(62% 0.13 25);
+  background: oklch(95% 0.02 25);
   padding: 2px 8px; border-radius: 20px;
-  border: 1px solid oklch(88% 0.01 290);
 }
+.stops-header-right { display: flex; align-items: center; gap: 5px; }
 
 .stops-timeline { display: flex; flex-direction: column; }
-.stop-row { display: flex; gap: 12px; transition: opacity 0.15s ease; }
-.stop-row.dragging { opacity: 0.3; }
+.stop-row { display: flex; gap: 10px; transition: opacity 0.15s ease; }
+.stop-row.dragging { opacity: 0.2; }
 .stop-row.drag-over .stop-content {
-  border-color: oklch(65% 0.11 290);
-  background: oklch(65% 0.11 290 / 0.04);
+  border-color: oklch(62% 0.13 25 / 0.3);
+  background: oklch(62% 0.13 25 / 0.03);
 }
 
+/* Timeline — ultra-subtle */
 .stop-timeline {
   display: flex; flex-direction: column; align-items: center;
-  width: 16px; flex-shrink: 0; padding-top: 14px;
+  width: 18px; flex-shrink: 0; padding-top: 16px;
 }
 .timeline-dot {
-  width: 10px; height: 10px; border-radius: 50%;
-  background: oklch(88% 0.01 290);
-  border: 2px solid oklch(98% 0.005 290);
-  flex-shrink: 0; transition: all 0.2s ease; z-index: 1;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: oklch(88% 0.008 55);
+  border: 2px solid oklch(100% 0 0);
+  flex-shrink: 0;
+  transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .timeline-dot.active {
-  width: 12px; height: 12px;
-  background: oklch(55% 0.18 290);
-  box-shadow: 0 0 0 3px oklch(55% 0.18 290 / 0.15);
+  background: oklch(62% 0.13 25);
+  box-shadow: 0 0 0 3px oklch(62% 0.13 25 / 0.14);
+  transform: scale(1.35);
 }
-.timeline-dot.visited { background: oklch(78% 0.02 290); }
+.timeline-dot.visited { background: oklch(72% 0.06 145); }
 .timeline-line {
-  width: 2px; flex: 1; min-height: 28px;
-  background: oklch(88% 0.01 290);
-  margin: 4px 0; border-radius: 1px; transition: background 0.2s ease;
+  width: 1.5px; flex: 1; min-height: 20px;
+  background: oklch(88% 0.008 55);
+  margin: 3px 0; border-radius: 1px;
+  transition: background 0.3s ease;
 }
-.timeline-line.visited { background: oklch(78% 0.02 290); }
+.timeline-line.visited { background: oklch(72% 0.06 145); }
 
+/* Stop content card */
 .stop-content {
-  flex: 1; display: flex; align-items: center; gap: 8px;
-  padding: 10px 12px; border-radius: 0.625rem;
-  border: 1px solid transparent; cursor: pointer;
-  transition: all 0.15s ease; margin-bottom: 8px; background: transparent;
+  flex: 1; display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid oklch(88% 0.008 55);
+  background: oklch(100% 0 0);
+  cursor: pointer;
+  margin-bottom: 6px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 .stop-content:hover {
-  background: oklch(97% 0.005 290);
-  border-color: oklch(90% 0.01 290);
+  border-color: oklch(72% 0.012 55);
+  box-shadow: 0 2px 8px oklch(30% 0.01 55 / 0.05);
+  transform: translateY(-1px);
 }
 .stop-content.visited { opacity: 0.45; }
 .stop-content.current {
-  background: oklch(65% 0.11 290 / 0.06);
-  border-color: oklch(75% 0.05 290 / 0.2);
+  background: oklch(62% 0.13 25 / 0.04);
+  border-color: oklch(62% 0.13 25 / 0.15);
 }
 
-.stop-main { flex: 1; min-width: 0; }
+/* Primary: name — dominant */
+.stop-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.stop-name-row { display: flex; align-items: baseline; gap: 7px; }
 .stop-name {
-  font-family: 'Noto Sans SC', sans-serif;
-  font-size: 0.8125rem; font-weight: 600;
-  color: oklch(25% 0.02 290);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: 'Noto Serif SC', serif;
+  font-size: 1rem; font-weight: 700;
+  color: oklch(22% 0.012 55);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;
+  letter-spacing: 0.01em; line-height: 1.2;
 }
-.stop-emoji { font-size: 14px; flex-shrink: 0; }
-.stop-meta { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
-.stop-type {
-  font-size: 0.625rem; color: oklch(55% 0.02 290);
-  text-transform: uppercase; letter-spacing: 0.04em;
-}
-.stop-desc { font-size: 0.625rem; color: oklch(65% 0.02 290); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stop-emoji { font-size: 15px; flex-shrink: 0; align-self: center; }
 
-.stop-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.15s ease; }
+/* Secondary: type — subdued, no background, just text */
+.stop-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.stop-type {
+  font-size: 0.6875rem; font-weight: 500;
+  color: oklch(52% 0.01 55);
+  letter-spacing: 0.02em;
+}
+.stop-desc {
+  font-size: 0.6875rem; color: oklch(68% 0.008 55);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;
+}
+
+/* Actions — appear on hover */
+.stop-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.2s ease; flex-shrink: 0; }
 .stop-content:hover .stop-actions { opacity: 1; }
 .action-btn {
-  width: 26px; height: 26px; border: none; background: transparent;
-  border-radius: 6px; display: flex; align-items: center; justify-content: center;
-  cursor: pointer; color: oklch(65% 0.02 290);
-  transition: all 0.15s ease;
+  width: 28px; height: 28px; border: none; background: transparent;
+  border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: oklch(58% 0.01 55); transition: all 0.15s ease; padding: 0;
 }
+.action-btn:hover { background: oklch(94% 0.008 55); color: oklch(30% 0.012 55); }
 
-.travel-toggle {
+/* Travel badge */
+.travel-badge {
   display: inline-flex; align-items: center; gap: 4px;
-  padding: 4px 8px;
-  background: oklch(97% 0.005 290);
-  border: 1px solid oklch(88% 0.01 290);
-  border-radius: 0.5rem; cursor: pointer;
-  transition: all 0.15s ease; white-space: nowrap; flex-shrink: 0;
+  padding: 3px 8px;
+  background: oklch(97% 0.004 55);
+  border: 1px solid oklch(88% 0.008 55);
+  border-radius: 6px; cursor: pointer; transition: all 0.15s ease;
+  white-space: nowrap; flex-shrink: 0;
 }
-.travel-toggle:hover {
-  background: oklch(93% 0.008 290); border-color: oklch(78% 0.02 290);
-}
-.travel-icon { font-size: 12px; }
-.travel-text { font-size: 0.6875rem; font-weight: 500; color: oklch(30% 0.02 290); }
+.travel-badge:hover { background: oklch(92% 0.01 55); border-color: oklch(78% 0.012 55); }
+.badge-icon { font-size: 12px; }
+.badge-text { font-size: 0.6875rem; font-weight: 500; color: oklch(35% 0.012 55); }
 
-/* ─── 空状态 ─── */
+.batch-checkbox { flex-shrink: 0; }
+
+/* Empty state */
 .stops-empty {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  padding: 48px 24px; min-height: 260px;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 40px 16px; min-height: 200px;
 }
-.empty-illustration {
-  position: relative; width: 120px; height: 60px;
-  margin-bottom: 32px; display: flex; align-items: center; justify-content: center;
-}
-.empty-dot {
-  position: absolute; width: 12px; height: 12px; border-radius: 50%;
-  background: oklch(72% 0.12 290 / 0.25);
-  border: 2px solid oklch(72% 0.12 290 / 0.4);
-}
-.dot-1 { left: 20px; top: 50%; transform: translateY(-50%); animation: float-dot 3s ease-in-out infinite; }
-.dot-2 { left: 50%; top: 50%; transform: translate(-50%, -50%); animation: float-dot-center 3s ease-in-out infinite 0.4s; }
-.dot-3 { right: 20px; top: 50%; transform: translateY(-50%); animation: float-dot 3s ease-in-out infinite 0.8s; }
-@keyframes float-dot {
-  0%, 100% { transform: translateY(-50%); opacity: 0.4; }
-  50% { transform: translateY(-60%); opacity: 0.8; }
-}
-@keyframes float-dot-center {
-  0%, 100% { transform: translate(-50%, -50%); opacity: 0.4; }
-  50% { transform: translate(-50%, -60%); opacity: 0.8; }
-}
-.empty-dash-line {
-  position: absolute; top: 50%; left: 32px; right: 32px; height: 0;
-  border-top: 2px dashed oklch(72% 0.12 290 / 0.3);
-  transform: translateY(-50%);
-}
-.empty-content { text-align: center; margin-bottom: 44px; }
-.empty-badge {
-  display: inline-block; font-size: 0.625rem; font-weight: 600;
-  letter-spacing: 0.12em; text-transform: uppercase;
-  color: oklch(55% 0.18 290);
-  background: oklch(55% 0.18 290 / 0.08);
-  padding: 4px 10px; border-radius: 20px; margin-bottom: 12px;
-  border: 1px solid oklch(55% 0.18 290 / 0.15);
-}
-.empty-title {
-  font-family: 'Noto Serif SC', serif;
-  font-size: 0.9375rem; font-weight: 600;
-  color: oklch(25% 0.02 290); margin: 0 0 8px 0;
-}
-.empty-hint {
-  font-family: 'Noto Sans SC', sans-serif;
-  font-size: 0.75rem; color: oklch(55% 0.02 290);
-  margin: 0; line-height: 1.6; max-width: 200px;
-}
-.add-in-empty :deep(.add-point-btn) {
-  padding: 10px 20px; font-size: 0.8125rem;
-  border-radius: 0.625rem;
-}
+.empty-visual { margin-bottom: 20px; }
+.empty-route { position: relative; width: 80px; height: 32px; display: flex; align-items: center; justify-content: space-between; }
+.route-dot { width: 8px; height: 8px; border-radius: 50%; background: oklch(82% 0.01 55); border: 2px solid oklch(100% 0 0); }
+.route-dot.highlight { background: oklch(62% 0.13 25); box-shadow: 0 0 0 3px oklch(62% 0.13 25 / 0.15); }
+.route-dash { position: absolute; top: 50%; left: 10px; right: 10px; height: 0; border-top: 1.5px dashed oklch(82% 0.01 55); transform: translateY(-50%); }
+.empty-content { text-align: center; margin-bottom: 24px; }
+.empty-badge { display: inline-block; font-size: 0.625rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: oklch(62% 0.13 25); background: oklch(95% 0.02 25); padding: 4px 10px; border-radius: 20px; margin-bottom: 10px; }
+.empty-title { font-family: 'Noto Serif SC', serif; font-size: 1rem; font-weight: 600; color: oklch(22% 0.012 55); margin: 0 0 6px 0; }
+.empty-hint { font-size: 0.75rem; color: oklch(52% 0.01 55); margin: 0; line-height: 1.6; max-width: 180px; }
+.add-in-empty :deep(.add-point-btn) { padding: 10px 20px; font-size: 0.8125rem; border-radius: 10px; }
 
-/* ─── 点位表单 ─── */
-.point-form { display: flex; flex-direction: column; gap: 16px; }
-.form-row { display: flex; flex-direction: column; gap: 6px; }
-.form-row label {
-  font-family: 'Noto Sans SC', sans-serif;
-  font-size: 0.75rem; color: oklch(40% 0.02 290); font-weight: 500;
+.stops-empty {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 40px 16px; min-height: 200px;
 }
-.coords {
-  font-size: 0.75rem; color: oklch(55% 0.02 290);
-  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
-  padding: 8px 12px; background: oklch(97% 0.005 290);
-  border-radius: 0.375rem; display: block;
-  border: 1px solid oklch(90% 0.008 290);
-}
+.empty-visual { margin-bottom: 20px; }
+.empty-route { position: relative; width: 80px; height: 32px; display: flex; align-items: center; justify-content: space-between; }
+.route-dot { width: 8px; height: 8px; border-radius: 50%; background: oklch(82% 0.01 55); border: 2px solid oklch(100% 0 0); }
+.route-dot.highlight { background: oklch(62% 0.13 25); box-shadow: 0 0 0 3px oklch(62% 0.13 25 / 0.15); }
+.route-dash { position: absolute; top: 50%; left: 10px; right: 10px; height: 0; border-top: 1.5px dashed oklch(82% 0.01 55); transform: translateY(-50%); }
+.empty-content { text-align: center; margin-bottom: 24px; }
+.empty-badge { display: inline-block; font-size: 0.625rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: oklch(62% 0.13 25); background: oklch(95% 0.02 25); padding: 4px 10px; border-radius: 20px; margin-bottom: 10px; }
+.empty-title { font-family: 'Noto Serif SC', serif; font-size: 1rem; font-weight: 600; color: oklch(22% 0.012 55); margin: 0 0 6px 0; }
+.empty-hint { font-size: 0.75rem; color: oklch(52% 0.01 55); margin: 0; line-height: 1.6; max-width: 180px; }
+.add-in-empty :deep(.add-point-btn) { padding: 10px 20px; font-size: 0.8125rem; border-radius: 10px; }
 
-/* ─── 移动中的点 ─── */
-.moving-dot { position: absolute; left: 0; top: 0; width: 20px; height: 20px; pointer-events: none; z-index: 50; display: none; }
-.moving-dot.visible { display: block; }
-.dot-ring {
-  position: absolute; left: 50%; top: 50%; width: 20px; height: 20px;
-  transform: translate(-50%, -50%); border-radius: 50%;
-  border: 2px solid oklch(55% 0.18 290 / 0.4);
-  animation: dot-ping 1.5s ease-out infinite;
-}
-.dot-core {
-  position: absolute; left: 50%; top: 50%; width: 8px; height: 8px;
-  transform: translate(-50%, -50%); border-radius: 50%;
-  background: oklch(55% 0.18 290);
-}
-@keyframes dot-ping {
-  0% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
-  100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
-}
-
-/* ─── 覆盖全局 label-tag 样式 ─── */
+/* ─── Label tag (AMap markers) ────────────────────── */
 :deep(.label-tag) {
-  background: oklch(55% 0.18 290) !important;
-  color: oklch(99% 0.01 290) !important;
-  box-shadow: 0 2px 10px oklch(45% 0.12 290 / 0.25) !important;
+  background: oklch(62% 0.13 25) !important;
+  color: oklch(99% 0 0) !important;
+  box-shadow: 0 2px 10px oklch(45% 0.1 25 / 0.25) !important;
   text-shadow: none !important;
 }
 
-/* responsive */
+/* ─── Control Panel (legacy, kept for compatibility) ─────────────────────────────────── */
+.control-panel { display: none; }
+
+/* ─── Top info bar —— Z 型视觉模式布局 ─────────────── */
+.top-info-bar {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 24px;
+  background: oklch(100% 0 0 / 0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid oklch(88% 0.008 55);
+  flex-shrink: 0;
+  z-index: 30;
+  gap: 0;
+}
+
+/* Z 型通用行 */
+.z-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+}
+.z-row-top {
+  padding-bottom: 10px;
+}
+.z-row-bottom {
+  padding-top: 10px;
+}
+
+/* Z 起点（左上 / 左下） */
+.z-start {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+/* Z 终点（右上 / 右下） */
+.z-end {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+/* 行程标识区 */
+.trip-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  line-height: 1.2;
+}
+.trip-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: oklch(58% 0.12 25);
+}
+.detail-trip-name {
+  font-family: 'Noto Serif SC', serif;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: oklch(22% 0.012 55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 260px;
+}
+
+/* 对角线进度条 —— Z 型的视觉脊柱 */
+.z-diagonal {
+  position: relative;
+  padding: 0;
+  margin: 0 -4px;
+}
+.progress-track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  background: oklch(90% 0.006 55);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-track::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    oklch(85% 0.008 55) 0px,
+    oklch(85% 0.008 55) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+  opacity: 0.5;
+}
+.progress-fill {
+  height: 100%;
+  background: oklch(58% 0.14 25);
+  border-radius: 2px;
+  transition: width 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+  position: relative;
+  z-index: 1;
+}
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translate(50%, -50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: oklch(58% 0.14 25);
+  box-shadow: 0 0 0 3px oklch(100% 0 0), 0 0 0 5px oklch(58% 0.14 25 / 0.2);
+}
+
+/* 进度状态 —— Z 左下 */
+.progress-status {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.progress-fraction {
+  font-family: 'Noto Serif SC', serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: oklch(22% 0.012 55);
+}
+.fraction-divider {
+  color: oklch(70% 0.008 55);
+  font-weight: 400;
+  margin: 0 1px;
+}
+.progress-label {
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: oklch(55% 0.01 55);
+  text-transform: uppercase;
+}
+
+/* 点位流向 —— Z 底部中间，视觉落点 */
+.z-flow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  font-size: 0.8125rem;
+  min-width: 0;
+}
+.nav-point {
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-weight: 500;
+  font-size: 0.75rem;
+  transition: all 0.2s ease;
+}
+.nav-point.prev {
+  background: oklch(92% 0.005 55);
+  color: oklch(50% 0.01 55);
+}
+.nav-point.current {
+  background: oklch(55% 0.15 25 / 0.1);
+  color: oklch(52% 0.14 25);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px oklch(55% 0.15 25 / 0.15);
+}
+.nav-point.next {
+  background: oklch(92% 0.005 55);
+  color: oklch(50% 0.01 55);
+}
+.nav-point.origin,
+.nav-point.terminus {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: oklch(65% 0.01 55);
+  background: transparent;
+  padding: 4px 8px;
+}
+.nav-point.placeholder {
+  color: oklch(78% 0.008 55);
+  background: transparent;
+}
+.nav-arrow {
+  color: oklch(62% 0.13 25);
+  font-size: 0.625rem;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+/* 百分比 —— Z 右下终点 */
+.percent-value {
+  font-family: 'Noto Serif SC', serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: oklch(58% 0.12 25);
+  min-width: 40px;
+  text-align: right;
+  position: relative;
+}
+
+/* 地点徽章 */
+.count-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: oklch(58% 0.12 25);
+  background: oklch(95% 0.02 25);
+  padding: 5px 12px;
+  border-radius: 20px;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+/* 播放控制 */
+.player-controls-mini {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.back-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+}
+
+/* ─── Bottom toolbar ──────────────────────────────── */
+.bottom-toolbar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.bottom-toolbar > * {
+  pointer-events: auto;
+}
+.toolbar-list {
+  display: inline-flex;
+  justify-content: center;
+  align-items: flex-end;
+  height: 40px;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  margin: 0;
+  padding: 10px;
+  background-color: rgba(55, 66, 77, 0.25);
+  list-style: none;
+  backdrop-filter: blur(8px);
+}
+.toolbar-item {
+  width: 40px;
+  height: 40px;
+  margin: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: oklch(99% 0 0);
+}
+.toolbar-icon-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+  padding: 6px;
+}
+
+/* ─── Side overlay & panels ───────────────────────── */
+.side-overlay {
+  position: fixed;
+  inset: 0;
+  background: oklch(15% 0.01 55 / 0.35);
+  z-index: 50;
+  backdrop-filter: blur(3px);
+}
+.side-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 360px;
+  height: 100vh;
+  background: oklch(100% 0 0);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 24px oklch(30% 0.01 55 / 0.1);
+}
+.side-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid oklch(88% 0.008 55);
+  flex-shrink: 0;
+}
+.side-panel-title {
+  font-family: 'Noto Serif SC', serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: oklch(22% 0.012 55);
+}
+.side-panel-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: oklch(96% 0.005 55);
+  color: oklch(40% 0.012 55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.side-panel-close:hover {
+  background: oklch(88% 0.008 55);
+}
+.side-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+/* Settings panel */
+.settings-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.setting-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.setting-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: oklch(40% 0.012 55);
+}
+
+/* ─── Responsive ───────────────────────────────────── */
 @media (max-width: 768px) {
-  .trip-detail { flex-direction: column; min-height: 0; gap: 16px; height: auto; }
+  .trip-detail { flex-direction: column; min-height: 0; gap: 14px; height: auto; }
   .trip-detail.is-fullscreen { height: 100vh; }
-  .map-container { min-height: 300px; max-height: 380px; border-radius: 16px; }
-  #amap-container { height: 100%; min-height: 300px; }
-  .control-panel { width: 100%; max-height: none; overflow-y: visible; padding: 16px; border-radius: 16px; }
-  .player-controls { gap: 8px; }
-  .stop-name { font-size: 14px; }
+  .map-container { min-height: 280px; max-height: 340px; border-radius: 14px; }
+  #amap-container { height: 100%; min-height: 280px; }
+  .control-panel { width: 100%; max-height: none; overflow-y: visible; padding: 16px 14px; border-radius: 14px; }
+  .player-controls { flex-wrap: wrap; gap: 6px; }
+  .speed-control { flex-wrap: wrap; }
+  .speed-slider-wrap { width: 100%; }
 }
 </style>

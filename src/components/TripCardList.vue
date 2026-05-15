@@ -30,13 +30,19 @@
             :key="trip.id"
             class="trip-card"
             :data-index="index"
-            @click="handleCardClick(trip.id)"
         >
           <div class="card-inner">
-            <!-- Top: trip number + date row -->
+            <!-- Top: trip number + date + reorder controls -->
             <div class="card-top">
               <span class="trip-num">{{ String(index + 1).padStart(2, '0') }}</span>
               <span class="trip-date">{{ getTripDate(trip) }}</span>
+              <!-- Edit button -->
+              <button class="edit-btn" @click.stop="openEditDialog(trip, index)" title="编辑行程">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </button>
             </div>
 
             <!-- Middle: name + stats -->
@@ -61,14 +67,75 @@
               <p v-else class="card-empty">点击添加第一个地点</p>
             </div>
 
-            <!-- Bottom: accent bar -->
-            <div class="card-bottom" :style="{ '--trip-accent': getTripAccent(index) }">
+            <!-- Bottom: accent bar + detail trigger -->
+            <div
+                class="card-bottom"
+                :style="{ '--trip-accent': getTripAccent(index) }"
+                @click.stop="enterDetail(trip.id)"
+            >
               <div class="accent-line"></div>
               <span class="view-label">查看行程</span>
             </div>
           </div>
         </li>
       </ul>
+
+      <!-- Name edit dialog -->
+      <el-dialog
+          v-model="editDialogVisible"
+          title="编辑行程"
+          width="400px"
+          :close-on-click-modal="true"
+          class="trip-edit-dialog"
+      >
+        <div class="edit-dialog-body">
+          <!-- Name field -->
+          <div class="edit-field">
+            <label class="edit-label">行程名称</label>
+            <el-input
+                v-model="editDialogName"
+                placeholder="输入行程名称"
+                maxlength="30"
+                show-word-limit
+                @keydown.enter="commitEditDialog"
+            />
+          </div>
+
+          <!-- Sort field -->
+          <div class="edit-field">
+            <label class="edit-label">排序位置</label>
+            <div class="sort-controls">
+              <el-button
+                  size="small"
+                  :disabled="editDialogIndex <= 0"
+                  @click="handleDialogMoveUp"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px">
+                  <path d="M18 15l-6-6-6 6"/>
+                </svg>
+                上移
+              </el-button>
+              <el-button
+                  size="small"
+                  :disabled="editDialogIndex >= trips.length - 1"
+                  @click="handleDialogMoveDown"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px">
+                  <path d="M6 9l6 6 6-6"/>
+                </svg>
+                下移
+              </el-button>
+              <span class="sort-hint">当前排序 {{ editDialogIndex + 1 }} / {{ trips.length }} </span>
+            </div>
+          </div>
+        </div>
+        <template #footer>
+          <div class="dialog-footer">
+            <el-button @click="editDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="commitEditDialog">保存修改</el-button>
+          </div>
+        </template>
+      </el-dialog>
 
       <!-- Indicators -->
       <div class="indicators">
@@ -97,12 +164,18 @@ import { useTripStore } from '../composables/useTripStore.js'
 
 gsap.registerPlugin(Draggable)
 
-const { trips, createTrip, getRouteSummary, enterDetail } = useTripStore()
+const { trips, createTrip, getRouteSummary, enterDetail, updateTripName, moveTrip } = useTripStore()
 
 const galleryRef   = ref(null)
 const cardsRef     = ref(null)
 const dragProxyRef = ref(null)
 const currentIndex = ref(0)
+
+// Unified edit dialog
+const editDialogVisible = ref(false)
+const editDialogId = ref(null)
+const editDialogName = ref('')
+const editDialogIndex = ref(0)
 
 let cardW      = 0
 let draggable  = null
@@ -125,8 +198,33 @@ function getTripDate(trip) {
   return `${months[d.getMonth()]} ${String(d.getDate()).padStart(2,'0')}`
 }
 function handleCardClick(id) {
-  if (isDragging) return
-  enterDetail(id)
+  // No longer used for entering detail — kept for potential future use
+}
+
+function openEditDialog(trip, index) {
+  editDialogId.value = trip.id
+  editDialogName.value = trip.name
+  editDialogIndex.value = index
+  editDialogVisible.value = true
+}
+
+function commitEditDialog() {
+  if (!editDialogId.value) return
+  updateTripName(editDialogId.value, editDialogName.value)
+  editDialogVisible.value = false
+  editDialogId.value = null
+}
+
+function handleDialogMoveUp() {
+  if (editDialogIndex.value <= 0) return
+  moveTrip(editDialogIndex.value, editDialogIndex.value - 1)
+  editDialogIndex.value = editDialogIndex.value - 1
+}
+
+function handleDialogMoveDown() {
+  if (editDialogIndex.value >= trips.value.length - 1) return
+  moveTrip(editDialogIndex.value, editDialogIndex.value + 1)
+  editDialogIndex.value = editDialogIndex.value + 1
 }
 
 function goTo(index, instant = false) {
@@ -402,7 +500,8 @@ watch(
 /* Top row */
 .card-top {
   display: flex; align-items: baseline; justify-content: space-between;
-  padding: 22px 22px 0;
+  padding: 22px 40px 0 22px;
+  position: relative;
 }
 .trip-num {
   font-family: 'Noto Serif SC', serif;
@@ -472,6 +571,86 @@ watch(
 }
 .trip-card:hover .view-label {
   opacity: 1; transform: translateY(0);
+}
+
+/* Edit button */
+.edit-btn {
+  position: absolute; right: 14px; top: 50%;
+  transform: translateY(-50%);
+  width: 28px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--tc-border);
+  border-radius: 8px;
+  background: var(--tc-surface);
+  color: var(--tc-ink-muted);
+  cursor: pointer; padding: 0;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s ease, all 0.15s ease;
+}
+.trip-card:hover .edit-btn {
+  opacity: 1; pointer-events: auto;
+}
+.edit-btn:hover {
+  background: var(--tc-ink); border-color: var(--tc-ink);
+  color: oklch(99% 0 0);
+}
+
+/* Edit dialog */
+.edit-dialog-body {
+  display: flex; flex-direction: column; gap: 20px;
+}
+.edit-field {
+  display: flex; flex-direction: column; gap: 8px;
+}
+.edit-label {
+  font-size: 0.75rem; font-weight: 600;
+  color: var(--tc-ink-muted); letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.edit-input {
+  width: 100%; box-sizing: border-box;
+  font-family: 'Noto Serif SC', serif;
+  font-size: 1rem; font-weight: 600;
+  color: var(--tc-ink);
+  background: oklch(93% 0.006 60);
+  border: 1px solid var(--tc-border);
+  border-radius: 8px;
+  padding: 10px 14px; outline: none;
+  transition: border-color 0.18s ease;
+}
+.edit-input:focus { border-color: var(--tc-ink-muted); }
+
+.sort-controls {
+  display: flex; align-items: center; gap: 8px;
+}
+.sort-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px 14px; border-radius: 8px;
+  border: 1px solid var(--tc-border);
+  background: transparent; color: var(--tc-ink-muted);
+  font-size: 0.8125rem; font-weight: 500; cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sort-btn:hover:not(:disabled) {
+  background: var(--tc-ink); border-color: var(--tc-ink);
+  color: oklch(99% 0 0);
+}
+.sort-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.sort-hint {
+  font-size: 0.75rem; color: var(--tc-ink-faint);
+  margin-left: 6px;
+}
+
+.dialog-footer {
+  display: flex; justify-content: space-between; gap: 12px;
+}
+
+.sort-controls {
+  display: flex; align-items: center; gap: 8px;
+}
+.sort-hint {
+  font-size: 0.75rem; color: var(--tc-ink-faint);
+  margin-left: 6px;
 }
 
 /* ── Indicators ──────────────────────────────────────────── */

@@ -36,6 +36,23 @@ export function useTripStore() {
     activeTripId.value = id
   }
 
+  function updateTripName(id, newName) {
+    const trip = trips.value.find(t => t.id === id)
+    if (!trip || !newName?.trim()) return false
+    trip.name = newName.trim()
+    return true
+  }
+
+  function moveTrip(fromIndex, toIndex) {
+    if (fromIndex === toIndex) return false
+    const total = trips.value.length
+    if (fromIndex < 0 || fromIndex >= total) return false
+    if (toIndex < 0 || toIndex >= total) return false
+    const [moved] = trips.value.splice(fromIndex, 1)
+    trips.value.splice(toIndex, 0, moved)
+    return true
+  }
+
   function deleteTrip(id) {
     if (trips.value.length <= 1) return
     const idx = trips.value.findIndex(t => t.id === id)
@@ -152,6 +169,8 @@ export function useTripStore() {
     batchDeletePointsFromTrip,
     updatePointInTrip,
     movePointInTrip,
+    updateTripName,
+    moveTrip,
     toggleSegmentTravelType,
     getTypeName
   }

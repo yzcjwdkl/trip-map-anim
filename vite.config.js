@@ -12,7 +12,11 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    include: ['tests/unit/**/*.test.js'],
+    include: [
+      'tests/composables/**/*.js',
+      'tests/components/**/*.js',
+      'tests/unit/**/*.js',
+    ],
     globals: true,
   },
 })
